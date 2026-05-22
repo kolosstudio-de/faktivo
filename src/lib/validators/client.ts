@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { isVatFormatValid } from "@/lib/validators/vies-format"
+
 export const clientSchema = z
   .object({
     type: z.enum(["person", "company"]),
@@ -38,6 +40,16 @@ export const clientSchema = z
         code: "custom",
         path: ["last_name"],
         message: "required",
+      })
+    }
+    // USt-IdNr.-Format-Check (lokal). VIES-Live-Check passiert separat
+    // async im Formular über /api/clients/validate-vat — wir blockieren
+    // hier nur grob ungültige Eingaben.
+    if (val.ust_id && val.ust_id.trim() && !isVatFormatValid(val.ust_id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ust_id"],
+        message: "invalid-vat-format",
       })
     }
   })
