@@ -1,26 +1,245 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   Faktivo Design System — Titan (light) + Mercury (dark)
+   See DESIGN.md for the full contract.
+   ============================================================ */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --font-display: var(--font-display);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  /* Radius scale derives from --radius. With --radius: 1.25rem (20px):
+       sm  = 12px   — small chips, dense controls
+       md  = 16px   — secondary controls
+       lg  = 20px   — inputs, selects, sidebar items     ← rounded-lg
+       xl  = 28px   — cards (Titan signature)            ← rounded-xl
+       2xl = 36px   — feature/hero containers            ← rounded-2xl
+       3xl = 44px   — bold panels                        ← rounded-3xl
+       4xl = 52px   — large badges, full-pill <h6        ← rounded-4xl
+       Buttons + status badges always use `rounded-full`. */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ============================================================
+   LIGHT — Titan: monochrome financial ledger with human warmth
+   ============================================================ */
+:root {
+  /* Surfaces */
+  --background: #ffffff;          /* Canvas White */
+  --foreground: #111111;          /* Midnight Ink */
+  --card: #ffffff;
+  --card-foreground: #111111;
+  --popover: #ffffff;
+  --popover-foreground: #111111;
+
+  /* Action / CTA */
+  --primary: #000000;             /* Action Black */
+  --primary-foreground: #ffffff;
+
+  /* Secondary surfaces */
+  --secondary: #f3efeb;           /* Off-White Sage */
+  --secondary-foreground: #111111;
+  --muted: #f3efeb;
+  --muted-foreground: #615e5b;    /* Gunmetal Gray */
+  --accent: #f3efeb;
+  --accent-foreground: #111111;
+
+  /* Brand (Faktivo Emerald — used by tone="emerald" + ring) */
+  --brand: #10b981;
+  --brand-foreground: #ffffff;
+
+  /* Status */
+  --destructive: #dc2626;         /* Rose 600 */
+
+  /* Borders & inputs */
+  --border: #e6e2dc;              /* Soft Concrete-ish — softer than spec for less harsh hairlines */
+  --input: #d8d3cc;               /* Faded Stone */
+  --ring: #10b981;                /* Brand emerald — focus rings glow brand */
+
+  /* Charts */
+  --chart-1: #10b981;             /* emerald — revenue */
+  --chart-2: #5266eb;             /* mercury blue — forecast */
+  --chart-3: #f59e0b;             /* amber — pending */
+  --chart-4: #a855f7;             /* violet — comparison */
+  --chart-5: #ec4899;             /* pink — special */
+
+  /* Radius base */
+  --radius: 1.25rem;              /* 20px — gives cards 28px, inputs 20px */
+
+  /* Sidebar */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #111111;
+  --sidebar-primary: #000000;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3efeb;
+  --sidebar-accent-foreground: #111111;
+  --sidebar-border: #e6e2dc;
+  --sidebar-ring: #10b981;
+}
+
+/* ============================================================
+   DARK — Mercury: command center at twilight
+   ============================================================ */
+.dark {
+  /* Surfaces */
+  --background: #171721;          /* Deep Space */
+  --foreground: #ededf3;          /* Starlight */
+  --card: #1e1e2a;                /* Midnight Slate */
+  --card-foreground: #ededf3;
+  --popover: #1e1e2a;
+  --popover-foreground: #ededf3;
+
+  /* Action / CTA */
+  --primary: #5266eb;             /* Mercury Blue */
+  --primary-foreground: #ffffff;
+
+  /* Secondary surfaces */
+  --secondary: #272735;           /* Graphite */
+  --secondary-foreground: #ededf3;
+  --muted: #272735;
+  --muted-foreground: #c3c3cc;    /* Silver */
+  --accent: #272735;
+  --accent-foreground: #ededf3;
+
+  /* Brand */
+  --brand: #10b981;
+  --brand-foreground: #062014;
+
+  /* Status */
+  --destructive: #f87171;         /* Rose 400 — lighter for dark */
+
+  /* Borders & inputs */
+  --border: #2e2e3d;              /* Between Graphite and Lead — subtle */
+  --input: #383848;
+  --ring: #10b981;
+
+  /* Charts (slightly brighter for dark contrast) */
+  --chart-1: #10b981;
+  --chart-2: #7c8cf5;
+  --chart-3: #fbbf24;
+  --chart-4: #c084fc;
+  --chart-5: #f472b6;
+
+  /* Sidebar — slightly raised vs page background */
+  --sidebar: #1c1c27;
+  --sidebar-foreground: #ededf3;
+  --sidebar-primary: #5266eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #272735;
+  --sidebar-accent-foreground: #ededf3;
+  --sidebar-border: #2e2e3d;
+  --sidebar-ring: #10b981;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "cv01", "tnum";
+  }
+  html {
+    @apply font-sans;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+  /* Numbers default to tabular-nums everywhere — finance-grade alignment */
+  .font-mono,
+  [class*="tabular-nums"] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  /* Headlines: weight 500 max — Titan/Mercury share this rule */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium tracking-tight;
+  }
+  /* Section headlines get tight tracking at display sizes */
+  h1 {
+    letter-spacing: -0.02em;
+  }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Sidebar active item — emerald accent bar slides in from the left.
+     Targets shadcn's [data-active="true"] state so we don't have to fork
+     the sidebar primitive. The bar grows from 0 → 60% height with a small
+     overshoot for tactile feedback. */
+  [data-slot="sidebar-menu-button"] {
+    position: relative;
+  }
+  [data-slot="sidebar-menu-button"][data-active="true"]::before {
+    content: "";
+    position: absolute;
+    left: -2px;
+    top: 50%;
+    width: 3px;
+    height: 60%;
+    background: var(--brand);
+    border-radius: 0 2px 2px 0;
+    transform: translateY(-50%) scaleY(0);
+    transform-origin: center;
+    animation: sidebar-active-grow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  @keyframes sidebar-active-grow {
+    from { transform: translateY(-50%) scaleY(0); }
+    to   { transform: translateY(-50%) scaleY(1); }
+  }
+
+  /* Smooth scroll + native view transitions when supported.
+     Faktivo's pages share the same shell so cross-route navigation
+     gets a free 200ms cross-fade on browsers that ship VT API. */
+  @media (prefers-reduced-motion: no-preference) {
+    @view-transition {
+      navigation: auto;
+    }
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: 220ms;
+      animation-timing-function: cubic-bezier(0.21, 0.47, 0.32, 0.98);
+    }
+  }
 }

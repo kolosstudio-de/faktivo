@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light dark" />
+    <title>E-Mail bestätigen — Faktivo</title>
+  </head>
+  <body
+    style="margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; color: #18181b;"
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellspacing="0"
+      cellpadding="0"
+      border="0"
+      style="background: #f4f4f5; padding: 40px 20px;"
+    >
+      <tr>
+        <td align="center">
+          <table
+            role="presentation"
+            width="520"
+            cellspacing="0"
+            cellpadding="0"
+            border="0"
+            style="background: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);"
+          >
+            <tr>
+              <td style="text-align: center;">
+                <div
+                  style="display: inline-block; width: 48px; height: 48px; line-height: 48px; border-radius: 12px; background: #0f172a; color: #ffffff; font-weight: 700; font-size: 18px;"
+                >
+                  F
+                </div>
+                <h1 style="margin: 24px 0 8px; font-size: 22px; line-height: 1.3;">
+                  Bestätige deine E-Mail
+                </h1>
+                <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">
+                  Willkommen bei <b>Faktivo</b>! Klick auf den Button, um dein Konto
+                  freizuschalten.
+                </p>
+                <a
+                  href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next={{ .RedirectTo }}"
+                  style="display: inline-block; background: #0f172a; color: #ffffff; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px;"
+                >
+                  E-Mail bestätigen
+                </a>
+                <p style="margin: 24px 0 0; color: #71717a; font-size: 12px; line-height: 1.6;">
+                  Falls der Button nicht funktioniert, kopiere diesen Link in
+                  deinen Browser:<br />
+                  <a
+                    href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next={{ .RedirectTo }}"
+                    style="color: #0f172a; word-break: break-all;"
+                  >{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next={{ .RedirectTo }}</a>
+                </p>
+                <hr
+                  style="border: none; border-top: 1px solid #e4e4e7; margin: 32px 0;"
+                />
+                <p style="margin: 0; color: #a1a1aa; font-size: 11px; line-height: 1.5;">
+                  Du hast dich nicht angemeldet? Dann ignoriere diese E-Mail —
+                  ohne Klick passiert nichts.
+                </p>
+                <p style="margin: 16px 0 0; color: #a1a1aa; font-size: 11px;">
+                  Faktivo · DSGVO-konforme Buchhaltung aus Deutschland
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

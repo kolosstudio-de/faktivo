@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Login-Link — Faktivo</title>
+  </head>
+  <body style="margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, sans-serif; color: #18181b;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #f4f4f5; padding: 40px 20px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="background: #fff; border-radius: 16px; padding: 40px;">
+            <tr>
+              <td style="text-align: center;">
+                <div style="display: inline-block; width: 48px; height: 48px; line-height: 48px; border-radius: 12px; background: #0f172a; color: #fff; font-weight: 700; font-size: 18px;">F</div>
+                <h1 style="margin: 24px 0 8px; font-size: 22px;">Dein Login-Link</h1>
+                <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">
+                  Klick auf den Button, um dich anzumelden — kein Passwort nötig.
+                </p>
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink&next={{ .RedirectTo }}" style="display: inline-block; background: #0f172a; color: #fff; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 14px;">Bei Faktivo anmelden</a>
+                <p style="margin: 24px 0 0; color: #71717a; font-size: 12px; line-height: 1.6;">
+                  Gültig 1 Stunde. Du hast diesen Link nicht angefordert? Ignoriere die E-Mail.
+                </p>
+                <hr style="border: none; border-top: 1px solid #e4e4e7; margin: 32px 0;" />
+                <p style="margin: 0; color: #a1a1aa; font-size: 11px;">Faktivo</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

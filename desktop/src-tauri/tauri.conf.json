@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Faktivo",
+  "version": "0.1.0",
+  "identifier": "digital.kolos.faktivo",
+  "build": {
+    "beforeDevCommand": "cd .. && npm run dev",
+    "beforeBuildCommand": "cd .. && npm run build",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../out"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Faktivo — Buchhaltung",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "titleBarStyle": "Visible",
+        "label": "main"
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ],
+    "category": "Business",
+    "shortDescription": "Buchhaltung für deutsche Selbstständige",
+    "longDescription": "Faktivo — Local-First Bookkeeping App für deutsche Selbstständige (Freelancer, Aufstocker). Alle Daten bleiben auf deinem Mac. DSGVO- und GoBD-konform. Rechnungen, Anlage EKS, EÜR, DATEV-Export.",
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "frameworks": [],
+      "entitlements": "entitlements.plist",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null
+    },
+    "publisher": "Kolos Digital",
+    "copyright": "© 2026 Kolos Digital"
+  },
+  "plugins": {
+    "updater": {
+      "active": false
+    }
+  }
+}
