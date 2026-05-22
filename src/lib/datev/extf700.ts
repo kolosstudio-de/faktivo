@@ -17,6 +17,7 @@ import type {
   ExpenseEntry,
   IncomeEntry,
   Invoice,
+  LineItem,
   Payment,
   Settings,
 } from "@/types/database.types"
@@ -105,6 +106,13 @@ function bookingRow(b: Booking): string {
 export interface DatevExportInput {
   settings: Settings
   invoices: Invoice[]
+  /**
+   * Line items grouped by parent invoice id. Wird genutzt um Rechnungen mit
+   * mehreren USt-Sätzen (z.B. 19 % + 7 %) korrekt zu splitten — Steuerberater
+   * können sonst nicht zwischen Erlösen 19 % (SKR 8400) und 7 % (SKR 8300)
+   * unterscheiden.
+   */
+  lineItemsByInvoice?: Record<string, LineItem[]>
   payments: (Payment & { invoice?: { number: string | null } | null })[]
   expenses: (ExpenseEntry & { category?: Category | null })[]
   extraIncome: (IncomeEntry & { category?: Category | null })[]
@@ -112,6 +120,53 @@ export interface DatevExportInput {
   to: string
   mandantennummer?: string
   beraternummer?: string
+}
+
+/**
+ * Liefert das Erlös-Konto + den DATEV-Buchungsschlüssel (BU) für den
+ * gegebenen USt-Satz. Buchungsschlüssel sind DATEV-Standard:
+ *   "3" = 19 % USt, "2" = 7 % USt, "8" = steuerfrei (innerg. Reverse Charge),
+ *   ""  = ohne automatische USt-Berechnung (für Klein­unternehmer).
+ */
+function resolveRevenueAccount(
+  vatRate: number,
+  isKleinunternehmer: boolean,
+  reverseCharge: boolean,
+): { konto: string; bu: string } {
+  if (isKleinunternehmer) {
+    return { konto: SKR03_ACCOUNTS.erloese_steuerfrei_19, bu: "" }
+  }
+  if (reverseCharge) {
+    return { konto: SKR03_ACCOUNTS.erloese_reverse, bu: "8" }
+  }
+  if (vatRate === 0) {
+    return { konto: SKR03_ACCOUNTS.erloese_steuerfrei_19, bu: "" }
+  }
+  if (vatRate >= 6.5 && vatRate <= 7.5) {
+    return { konto: SKR03_ACCOUNTS.erloese_7, bu: "2" }
+  }
+  // Default to 19 % bucket (covers 18.5..19.5 nominal)
+  return { konto: SKR03_ACCOUNTS.erloese_19, bu: "3" }
+}
+
+/**
+ * Gruppiert Lineitems nach USt-Satz und summiert Brutto (subtotal + vat) per
+ * Bucket. So bekommen wir eine Buchungszeile je Steuersatz.
+ */
+function groupLineTotalsByVatRate(
+  lines: LineItem[],
+): Array<{ vatRate: number; grossCents: number }> {
+  const buckets = new Map<number, number>()
+  for (const line of lines) {
+    // VAT-Rate als 1-Nachkommastellen-Schlüssel — vermeidet 19 vs 19.00 vs 18.999
+    const key = Math.round(Number(line.vat_rate) * 10) / 10
+    const gross =
+      Number(line.line_subtotal_cents) + Number(line.line_vat_cents)
+    buckets.set(key, (buckets.get(key) ?? 0) + gross)
+  }
+  return [...buckets.entries()]
+    .map(([vatRate, grossCents]) => ({ vatRate, grossCents }))
+    .sort((a, b) => b.vatRate - a.vatRate) // höchster Satz zuerst (Konvention)
 }
 
 export function generateExtf700(input: DatevExportInput): string {
@@ -186,28 +241,81 @@ export function generateExtf700(input: DatevExportInput): string {
 
   const bookings: string[] = []
 
-  // Invoices — revenue booking
+  // Invoices — revenue booking, split per VAT-Satz wenn Lineitems vorliegen
   for (const inv of invoices) {
     if (!inv.number || inv.locked_at === null) continue
     if (inv.total_cents === 0) continue
-    const revenueAccount = inv.is_kleinunternehmer_at_issue
-      ? SKR03_ACCOUNTS.erloese_steuerfrei_19
-      : inv.reverse_charge
-        ? SKR03_ACCOUNTS.erloese_reverse
-        : SKR03_ACCOUNTS.erloese_19 // TODO: split by VAT rate per line
-    const sh: "S" | "H" = inv.total_cents >= 0 ? "H" : "S"
-    bookings.push(
-      bookingRow({
-        umsatz: inv.total_cents,
-        sh,
-        konto: SKR03_ACCOUNTS.forderungen,
-        gegenkonto: revenueAccount,
-        buschluessel: inv.is_kleinunternehmer_at_issue ? "" : "3", // BU=3 for 19% Erlöse
-        belegdatum: inv.issue_date,
-        belegnr: inv.number,
-        text: `Rechnung ${inv.number}`,
-      })
-    )
+
+    const lines = input.lineItemsByInvoice?.[inv.id] ?? []
+    const buckets = lines.length > 0 ? groupLineTotalsByVatRate(lines) : []
+
+    // Bei Kleinunternehmer / Reverse-Charge gibt es nur einen Bucket — auch
+    // dann normalisieren wir auf "ein vatRate=0/nominal", damit der Pfad
+    // unten konsistent ist.
+    if (
+      inv.is_kleinunternehmer_at_issue ||
+      inv.reverse_charge ||
+      buckets.length === 0
+    ) {
+      // Fallback: ein Buchungssatz fürs ganze Brutto (alte Verhalten).
+      const { konto, bu } = resolveRevenueAccount(
+        // VAT-Rate aus erstem Line falls vorhanden, sonst 19 als Default
+        lines[0]?.vat_rate ?? 19,
+        inv.is_kleinunternehmer_at_issue,
+        inv.reverse_charge,
+      )
+      const sh: "S" | "H" = inv.total_cents >= 0 ? "H" : "S"
+      bookings.push(
+        bookingRow({
+          umsatz: inv.total_cents,
+          sh,
+          konto: SKR03_ACCOUNTS.forderungen,
+          gegenkonto: konto,
+          buschluessel: bu,
+          belegdatum: inv.issue_date,
+          belegnr: inv.number,
+          text: `Rechnung ${inv.number}`,
+        }),
+      )
+      continue
+    }
+
+    // Echtes Splitting per USt-Satz. Ein Buchungssatz je Bucket.
+    // Rundungsdrift: wir kumulieren die ersten N-1 Buckets, der letzte
+    // bekommt den Rest (= inv.total_cents - sum_others), damit am Ende
+    // die Forderungssumme exakt aufgeht.
+    const sortedBuckets = buckets
+    let running = 0
+    for (let i = 0; i < sortedBuckets.length; i++) {
+      const bucket = sortedBuckets[i]
+      const isLast = i === sortedBuckets.length - 1
+      const gross = isLast ? inv.total_cents - running : bucket.grossCents
+      running += gross
+      if (gross === 0) continue
+
+      const { konto, bu } = resolveRevenueAccount(
+        bucket.vatRate,
+        false,
+        false,
+      )
+      const sh: "S" | "H" = gross >= 0 ? "H" : "S"
+      const suffix =
+        sortedBuckets.length > 1
+          ? ` (${bucket.vatRate.toFixed(0)} % USt)`
+          : ""
+      bookings.push(
+        bookingRow({
+          umsatz: gross,
+          sh,
+          konto: SKR03_ACCOUNTS.forderungen,
+          gegenkonto: konto,
+          buschluessel: bu,
+          belegdatum: inv.issue_date,
+          belegnr: inv.number,
+          text: `Rechnung ${inv.number}${suffix}`,
+        }),
+      )
+    }
   }
 
   // Payments — bank receipt

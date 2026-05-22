@@ -7,6 +7,7 @@ import type {
   ExpenseEntry,
   IncomeEntry,
   Invoice,
+  LineItem,
   Payment,
   Settings,
 } from "@/types/database.types"
@@ -63,9 +64,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "no settings" }, { status: 500 })
   }
 
+  // Fetch line_items für alle gefundenen Rechnungen → ermöglicht per-VAT-Split
+  // im Buchungsstapel (Erlöse 19 % vs 7 % vs steuerfrei landen auf eigenen Konten).
+  const invoices = (invRes.data ?? []) as Invoice[]
+  const invoiceIds = invoices.map((i) => i.id)
+  const lineItemsByInvoice: Record<string, LineItem[]> = {}
+  if (invoiceIds.length > 0) {
+    const { data: lines } = await supabase
+      .from("line_items")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("parent_kind", "invoice")
+      .in("parent_id", invoiceIds)
+    for (const line of (lines ?? []) as LineItem[]) {
+      const bucket = lineItemsByInvoice[line.parent_id] ?? []
+      bucket.push(line)
+      lineItemsByInvoice[line.parent_id] = bucket
+    }
+  }
+
   const csv = generateExtf700({
     settings: settingsRes.data as Settings,
-    invoices: (invRes.data ?? []) as Invoice[],
+    invoices,
+    lineItemsByInvoice,
     payments: (payRes.data ?? []) as (Payment & {
       invoice?: { number: string | null } | null
     })[],
