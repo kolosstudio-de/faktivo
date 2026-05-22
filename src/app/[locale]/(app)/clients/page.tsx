@@ -1,7 +1,9 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
+import { Users } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/server"
 import { ClientsTable } from "@/components/tables/clients-table"
+import { EmptyState } from "@/components/ui/empty-state"
 import type { Client } from "@/types/database.types"
 
 export default async function ClientsPage({
@@ -20,6 +22,8 @@ export default async function ClientsPage({
     .is("archived_at", null)
     .order("created_at", { ascending: false })
 
+  const rows = (data ?? []) as Client[]
+
   return (
     <div className="mx-auto grid max-w-6xl gap-6">
       <header>
@@ -28,7 +32,15 @@ export default async function ClientsPage({
           Stammdaten deiner Kunden — Unternehmen und Privatpersonen.
         </p>
       </header>
-      <ClientsTable initial={(data ?? []) as Client[]} />
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={<Users />}
+          title="Noch keine Kunden"
+          description="Lege deinen ersten Kunden an — danach kannst du Angebote und Rechnungen direkt für ihn erstellen, ohne die Adresse erneut einzutippen."
+        />
+      ) : (
+        <ClientsTable initial={rows} />
+      )}
     </div>
   )
 }

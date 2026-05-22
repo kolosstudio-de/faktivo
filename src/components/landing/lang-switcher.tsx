@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, Globe } from "lucide-react"
+import { Check, ChevronDown, Globe } from "lucide-react"
 import { usePathname, useSearchParams } from "next/navigation"
 
 import {
@@ -72,22 +72,36 @@ export function LangSwitcher({ locale }: Props) {
           <ChevronDown className="size-3.5 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {LOCALES.map((l) => (
-          <DropdownMenuItem
-            key={l.code}
-            onClick={(e) => {
-              e.preventDefault()
-              switchTo(l.code)
-            }}
-            className={l.code === locale ? "bg-muted" : ""}
-          >
-            <span className="text-muted-foreground mr-2 font-mono text-xs">
-              {l.short}
-            </span>
-            {l.label}
-          </DropdownMenuItem>
-        ))}
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        {LOCALES.map((l) => {
+          const isActive = l.code === locale
+          return (
+            <DropdownMenuItem
+              key={l.code}
+              onClick={(e) => {
+                e.preventDefault()
+                switchTo(l.code)
+              }}
+              className={
+                isActive
+                  ? "bg-primary/10 text-primary focus:bg-primary/15 focus:text-primary font-medium"
+                  : ""
+              }
+            >
+              <span
+                className={
+                  isActive
+                    ? "text-primary mr-2 font-mono text-xs"
+                    : "text-muted-foreground mr-2 font-mono text-xs"
+                }
+              >
+                {l.short}
+              </span>
+              <span className="flex-1">{l.label}</span>
+              {isActive ? <Check className="text-primary size-3.5" /> : null}
+            </DropdownMenuItem>
+          )
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -1,9 +1,10 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
 
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from "@/i18n/navigation"
 import { DocumentForm } from "@/components/forms/document-form"
+import { PlanLimitReached } from "@/components/billing/plan-limit-reached"
 import { PLANS } from "@/lib/billing/plans"
+import { formatMoney } from "@/lib/money"
 import { berlinMonthStart, berlinMonthEnd } from "@/lib/utils/berlin-time"
 
 export default async function NewInvoicePage({
@@ -41,25 +42,35 @@ export default async function NewInvoicePage({
   const limit = plan.limits.rechnungen_per_month
 
   if (limit !== "unlimited") {
-    // Kalendermonat in Europe/Berlin — Vercel-Server läuft UTC, ohne diese
-    // Konvertierung zählt der 1. eines Monats (00:30 Berlin = 22:30 UTC vortags)
-    // im falschen Bucket. Bürgergeld-EKS-Empfänger erleben das jeden Monatswechsel.
+    // Kalendermonat in Europe/Berlin
     const monthStart = berlinMonthStart()
     const monthEnd = berlinMonthEnd()
 
-    // Count regular invoices for the calendar month.
-    // Stornorechnungen (cancels_invoice_id IS NOT NULL) don't count
-    // toward the limit — they are corrections of existing invoices.
-    const { count } = await supabase
-      .from("invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user!.id)
-      .is("cancels_invoice_id", null)
-      .gte("issue_date", monthStart)
-      .lt("issue_date", monthEnd)
+    const [{ count }, draftRes] = await Promise.all([
+      supabase
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .is("cancels_invoice_id", null)
+        .gte("issue_date", monthStart)
+        .lt("issue_date", monthEnd),
+      supabase
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .eq("status", "draft"),
+    ])
 
     if ((count ?? 0) >= limit) {
-      redirect({ href: "/billing?limit=reached", locale })
+      const proPlan = PLANS.find((p) => p.id === "pro")
+      return (
+        <PlanLimitReached
+          limit={limit}
+          used={count ?? 0}
+          draftCount={draftRes.count ?? 0}
+          proPriceFormatted={formatMoney(proPlan?.price_monthly_cents ?? 990)}
+        />
+      )
     }
   }
 

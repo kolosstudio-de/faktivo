@@ -85,10 +85,22 @@ export default async function InvoiceDetailPage({
                 </Badge>
               ) : null}
               {invoice.is_kleinunternehmer_at_issue ? (
-                <Badge variant="outline">§19</Badge>
+                <Badge
+                  variant="outline"
+                  className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  title="Diese Rechnung wurde nach § 19 UStG ohne ausgewiesene Umsatzsteuer ausgestellt (Kleinunternehmer-Regelung)."
+                >
+                  § 19 · ohne USt.
+                </Badge>
               ) : null}
               {invoice.reverse_charge ? (
-                <Badge variant="outline">§13b</Badge>
+                <Badge
+                  variant="outline"
+                  className="border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-400"
+                  title="Reverse-Charge nach § 13b UStG — Steuerschuldnerschaft des Leistungsempfängers."
+                >
+                  § 13b · Reverse-Charge
+                </Badge>
               ) : null}
             </div>
             <p className="text-muted-foreground text-sm">

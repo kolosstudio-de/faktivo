@@ -73,7 +73,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <QueryProvider>
             <TooltipProvider delay={150}>
               {children}
-              <Toaster position="top-right" richColors closeButton />
+              {/*
+                top-right überlappt auf < 768 px die Burger-Navigation und
+                den Account-Avatar. top-center bleibt mobil sichtbar und
+                kollidiert nicht mit der Status-Bar (iOS Safe-Area).
+              */}
+              <Toaster
+                position="top-center"
+                richColors
+                closeButton
+                mobileOffset={{ top: "1rem" }}
+              />
             </TooltipProvider>
           </QueryProvider>
         </ThemeProvider>

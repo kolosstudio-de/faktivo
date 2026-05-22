@@ -30,6 +30,9 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      // DE/AT/CH/UK/RU/UA — alle Märkte starten die Kalender­woche mit Montag.
+      // react-day-picker default ist Sonntag (US). Per-Default override.
+      weekStartsOn={1}
       className={cn(
         "group/calendar bg-background p-2 [--cell-radius:var(--radius-md)] [--cell-size:--spacing(7)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
