@@ -251,6 +251,10 @@ export async function POST(request: NextRequest) {
       match.invoice_id &&
       match.confidence >= 0.7
     ) {
+      // Insert payment row only — the DB trigger `recalc_invoice_payment`
+      // updates invoices.paid_cents + status atomically. Manual UPDATE here
+      // would race against that trigger when multiple bank transactions
+      // arrive in the same webhook batch.
       const { data: pay } = await supabase
         .from("payments")
         .insert({
@@ -266,25 +270,6 @@ export async function POST(request: NextRequest) {
       if (pay) {
         payment_id = pay.id
         matched++
-        // Update invoice
-        const { data: inv } = await supabase
-          .from("invoices")
-          .select("paid_cents, total_cents")
-          .eq("id", match.invoice_id)
-          .single()
-        if (inv) {
-          const newPaid = (inv.paid_cents ?? 0) + cents
-          const status =
-            newPaid >= inv.total_cents
-              ? "paid"
-              : newPaid > 0
-                ? "partially_paid"
-                : "sent"
-          await supabase
-            .from("invoices")
-            .update({ paid_cents: newPaid, status })
-            .eq("id", match.invoice_id)
-        }
       }
     }
 

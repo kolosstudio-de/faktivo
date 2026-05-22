@@ -3,6 +3,7 @@ import type Stripe from "stripe"
 
 import { getStripe, STRIPE_WEBHOOK_SECRET } from "@/lib/billing/stripe"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { berlinToday } from "@/lib/utils/berlin-time"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -76,57 +77,52 @@ export async function POST(request: NextRequest) {
       const amountTotal = session.amount_total ?? 0
 
       if (invoiceId && userId && amountTotal > 0 && session.payment_status === "paid") {
-        // Fetch invoice
-        const { data: inv } = await admin
-          .from("invoices")
-          .select("*")
-          .eq("id", invoiceId)
-          .eq("user_id", userId)
-          .single()
+        // Idempotency: Stripe retries webhooks aggressively. If we already
+        // recorded a payment with this session.id as reference, skip.
+        const { data: existing } = await admin
+          .from("payments")
+          .select("id")
+          .eq("reference", session.id)
+          .maybeSingle()
 
-        if (inv) {
-          // Create payment row (idempotent via session.id stored in reference)
-          const { data: existing } = await admin
+        if (!existing) {
+          // Insert payment row. The DB trigger `recalc_invoice_payment`
+          // (defined in initial_schema.sql, updated in
+          // 20260522000003_overdue_berlin_tz.sql) recomputes paid_cents and
+          // status atomically — we MUST NOT do a manual update afterwards,
+          // otherwise we race against the trigger and may lose updates from
+          // concurrent payments.
+          const { error: payErr } = await admin
             .from("payments")
-            .select("id")
-            .eq("reference", session.id)
-            .maybeSingle()
+            .insert({
+              user_id: userId,
+              invoice_id: invoiceId,
+              paid_at: berlinToday(),
+              amount_cents: amountTotal,
+              method: "stripe_payment_link",
+              reference: session.id,
+              notes: `Stripe Payment Link ${session.payment_link ?? ""} · Customer ${session.customer_email ?? "—"}`,
+            })
 
-          if (!existing) {
-            const { error: payErr } = await admin
-              .from("payments")
-              .insert({
-                user_id: userId,
-                invoice_id: invoiceId,
-                paid_at: new Date().toISOString().slice(0, 10),
-                amount_cents: amountTotal,
-                method: "stripe_payment_link",
-                reference: session.id,
-                notes: `Stripe Payment Link ${session.payment_link ?? ""} · Customer ${session.customer_email ?? "—"}`,
-              })
+          if (!payErr) {
+            // Re-fetch to see the trigger's freshly computed paid_cents.
+            const { data: refreshed } = await admin
+              .from("invoices")
+              .select("paid_cents, total_cents, stripe_payment_link_id")
+              .eq("id", invoiceId)
+              .single()
 
-            if (!payErr) {
-              const newPaid = (inv.paid_cents ?? 0) + amountTotal
-              const status =
-                newPaid >= inv.total_cents
-                  ? "paid"
-                  : newPaid > 0
-                    ? "partially_paid"
-                    : inv.status
-
-              await admin
-                .from("invoices")
-                .update({ paid_cents: newPaid, status })
-                .eq("id", invoiceId)
-
-              // Deactivate the Payment Link if fully paid
-              if (newPaid >= inv.total_cents && inv.stripe_payment_link_id) {
-                const stripe = getStripe()
-                if (stripe) {
-                  await stripe.paymentLinks
-                    .update(inv.stripe_payment_link_id, { active: false })
-                    .catch(() => null)
-                }
+            // Deactivate the Payment Link once the invoice is fully paid.
+            if (
+              refreshed &&
+              refreshed.paid_cents >= refreshed.total_cents &&
+              refreshed.stripe_payment_link_id
+            ) {
+              const stripe2 = getStripe()
+              if (stripe2) {
+                await stripe2.paymentLinks
+                  .update(refreshed.stripe_payment_link_id, { active: false })
+                  .catch(() => null)
               }
             }
           }
