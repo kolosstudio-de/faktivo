@@ -6,18 +6,25 @@
  *         app_version: "1.0.0" }
  *
  * Bindet das Gerät (machine_fingerprint) an einen Lizenz-Schlüssel.
+ * Erfordert zusätzlich `Authorization: Bearer <supabase-access-token>` —
+ * sonst könnte jeder mit dem Key + zufälligem Fingerprint einen
+ * Aktivierungs-Slot belegen (DoS bei max_devices=1 Free-Lizenzen).
  *
  * Antwort: { ok: true, license: { plan, expires_at, status } }
  *   oder    { ok: false, error: "..." }
  *
  * Errors:
+ *   - "missing_token" — kein Authorization-Header
+ *   - "invalid_token" — Token nicht zur Session passend
  *   - "license_not_found" — falscher Key
+ *   - "license_not_owned" — Key gehört einem anderen User
  *   - "license_revoked"
  *   - "license_expired"
  *   - "max_devices_reached" — z.B. Free 1 Gerät, schon belegt
  */
 
 import { NextResponse, type NextRequest } from "next/server"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
 import { createServiceClient } from "@/lib/supabase/server"
 
@@ -32,7 +39,36 @@ interface Body {
   app_version?: string
 }
 
+/**
+ * Validiert das `Authorization: Bearer <jwt>`-Token gegen Supabase Auth.
+ * Liefert die user.id, oder null wenn ungültig.
+ */
+async function userIdFromAuthHeader(authHeader: string | null): Promise<string | null> {
+  if (!authHeader?.startsWith("Bearer ")) return null
+  const token = authHeader.slice("Bearer ".length).trim()
+  if (!token) return null
+  // Wir nutzen einen leichten anon-Client, der das JWT validiert (nicht den
+  // service-role — der hat zu viel Rechte). `getUser(token)` macht den
+  // Roundtrip zu /auth/v1/user, hält JWKS-Cache intern.
+  const client = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  )
+  const { data, error } = await client.auth.getUser(token)
+  if (error || !data.user) return null
+  return data.user.id
+}
+
 export async function POST(request: NextRequest) {
+  const userId = await userIdFromAuthHeader(request.headers.get("authorization"))
+  if (!userId) {
+    return NextResponse.json(
+      { ok: false, error: "missing_token" },
+      { status: 401 },
+    )
+  }
+
   const body = (await request.json().catch(() => null)) as Body | null
   if (!body?.key || !body.machine_fingerprint) {
     return NextResponse.json(
@@ -53,6 +89,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { ok: false, error: "license_not_found" },
       { status: 404 }
+    )
+  }
+
+  // Lizenz muss dem aufrufenden User gehören. Sonst könnte jemand mit
+  // einem geleakten Key + eigenem Account fremde Geräte-Slots belegen.
+  if (license.user_id !== userId) {
+    return NextResponse.json(
+      { ok: false, error: "license_not_owned" },
+      { status: 403 },
     )
   }
 

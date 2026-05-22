@@ -1,5 +1,8 @@
 import { z } from "zod"
 
+import { isBicValid, isIbanValid } from "@/lib/validators/iban"
+import { isVatFormatValid } from "@/lib/validators/vies-format"
+
 export const addressSchema = z.object({
   street: z.string().trim().min(1, "required"),
   street2: z.string().trim().optional().or(z.literal("")),
@@ -12,10 +15,30 @@ export const settingsSchema = z.object({
   company_name: z.string().trim().min(1, "required").max(120),
   address: addressSchema,
   tax_id: z.string().trim().max(40).optional().or(z.literal("")),
-  ust_id: z.string().trim().max(40).optional().or(z.literal("")),
+  ust_id: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || isVatFormatValid(v), {
+      message: "invalid-vat-format",
+    }),
   is_kleinunternehmer: z.boolean(),
-  iban: z.string().trim().max(34).optional().or(z.literal("")),
-  bic: z.string().trim().max(11).optional().or(z.literal("")),
+  iban: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || isIbanValid(v), { message: "invalid-iban" }),
+  bic: z
+    .string()
+    .trim()
+    .max(11)
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || isBicValid(v), { message: "invalid-bic" }),
   bank_name: z.string().trim().max(120).optional().or(z.literal("")),
   default_vat_rate: z.coerce.number().min(0).max(25),
   locale: z.enum(["de", "en", "ru", "uk"]),
