@@ -167,7 +167,14 @@ function LineRow({
         </Button>
       </div>
 
-      {/* Row 2: numeric controls — 2-col on mobile, 3-col on sm, 6-col on lg+ */}
+      {/*
+        Row 2: numeric controls — paired layout on mobile (avoids 6-cells-on-1-col
+        chaos), 3-col on sm, 6-col on lg+. Pairing rationale:
+          (qty | unit) — Menge + Einheit gehören semantisch zusammen
+          (price | vat) — Preis-mit-USt-Wahl
+          (discount | total) — Rabatt-Wirkung vs. Endsumme
+        Total bekommt extra Hervorhebung (col-span-2 auf mobile).
+      */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[90px_90px_minmax(0,1fr)_90px_90px_minmax(0,1fr)] lg:items-end">
         <NumField
           label={tItems("quantity")}
@@ -238,8 +245,9 @@ function LineRow({
           max="100"
         />
 
+        {/* Line-Total: betont hervorgehoben, voll Breite auf mobile */}
         <FieldWrap label={tItems("lineTotal")}>
-          <div className="bg-muted/40 flex h-9 items-center justify-end rounded-md border border-dashed px-3 text-right font-mono text-sm font-medium tabular-nums">
+          <div className="bg-primary/5 border-primary/20 flex h-9 items-center justify-end rounded-md border px-3 text-right font-mono text-sm font-semibold tabular-nums">
             {formatMoney(totals.lineTotalCents)}
           </div>
         </FieldWrap>
@@ -255,9 +263,10 @@ function FieldWrap({
   label: string
   children: React.ReactNode
 }) {
+  // 11px statt 10 — auf Mobile war 10px unter der Lesegrenze für ältere Nutzer.
   return (
     <div className="grid gap-1">
-      <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+      <span className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
         {label}
       </span>
       {children}
