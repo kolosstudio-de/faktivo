@@ -27,9 +27,21 @@ import { NextResponse, type NextRequest } from "next/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
 import { createServiceClient } from "@/lib/supabase/server"
+import {
+  ipFromRequest,
+  rateLimit,
+  tooManyRequests,
+} from "@/lib/api/rate-limit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+// 10 Aktivierungs-Versuche pro IP pro Stunde — fängt Bots ab, ohne legitime
+// Re-Aktivierung nach Neuinstallation oder Geräte-Wechsel zu blocken.
+const activateLimit = rateLimit("license-activate", {
+  tokensPerInterval: 10,
+  intervalMs: 60 * 60_000,
+})
 
 interface Body {
   key: string
@@ -61,6 +73,9 @@ async function userIdFromAuthHeader(authHeader: string | null): Promise<string |
 }
 
 export async function POST(request: NextRequest) {
+  const limited = activateLimit(ipFromRequest(request))
+  if (limited) return tooManyRequests(limited.retryAfterSeconds)
+
   const userId = await userIdFromAuthHeader(request.headers.get("authorization"))
   if (!userId) {
     return NextResponse.json(

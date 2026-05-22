@@ -1,12 +1,23 @@
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import {
+  ipFromRequest,
+  rateLimit,
+  tooManyRequests,
+} from "@/lib/api/rate-limit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const DEMO_EMAIL = "demo@kolos.local"
 const DEMO_PASSWORD = "demo1234"
+
+// Demo-Account-Provisioning braucht admin.auth-Aufrufe (teuer). 5 / 15 min pro IP.
+const demoLimit = rateLimit("auth-demo", {
+  tokensPerInterval: 5,
+  intervalMs: 15 * 60_000,
+})
 
 /**
  * Server-side demo-account provisioning.
@@ -15,13 +26,16 @@ const DEMO_PASSWORD = "demo1234"
  *
  * Local-dev only — gate by NODE_ENV in production.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO !== "true") {
     return NextResponse.json(
       { error: "Demo-Login ist im Produktivbetrieb deaktiviert." },
       { status: 403 }
     )
   }
+
+  const limited = demoLimit(ipFromRequest(request))
+  if (limited) return tooManyRequests(limited.retryAfterSeconds)
 
   const admin = createAdminClient()
 
