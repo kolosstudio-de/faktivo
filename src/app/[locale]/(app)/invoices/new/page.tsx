@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "@/i18n/navigation"
 import { DocumentForm } from "@/components/forms/document-form"
 import { PLANS } from "@/lib/billing/plans"
+import { berlinMonthStart, berlinMonthEnd } from "@/lib/utils/berlin-time"
 
 export default async function NewInvoicePage({
   params,
@@ -40,17 +41,11 @@ export default async function NewInvoicePage({
   const limit = plan.limits.rechnungen_per_month
 
   if (limit !== "unlimited") {
-    const now = new Date()
-    const monthStart = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-    )
-      .toISOString()
-      .slice(0, 10)
-    const monthEnd = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
-    )
-      .toISOString()
-      .slice(0, 10)
+    // Kalendermonat in Europe/Berlin — Vercel-Server läuft UTC, ohne diese
+    // Konvertierung zählt der 1. eines Monats (00:30 Berlin = 22:30 UTC vortags)
+    // im falschen Bucket. Bürgergeld-EKS-Empfänger erleben das jeden Monatswechsel.
+    const monthStart = berlinMonthStart()
+    const monthEnd = berlinMonthEnd()
 
     // Count regular invoices for the calendar month.
     // Stornorechnungen (cancels_invoice_id IS NOT NULL) don't count
