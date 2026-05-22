@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, Download, Loader2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Check, Download, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { useSupabase } from "@/lib/hooks/use-supabase"
@@ -79,9 +79,17 @@ export function MahnungDialog({ invoice, open, onOpenChange }: Props) {
 
   const outstanding = invoice.total_cents - invoice.paid_cents
 
+  // 2-Schritt-Wizard: Stufe wählen → Recht + Vorschau bestätigen.
+  // Vorher: alles auf einem Screen ohne Step-Visualisierung, der User klickte
+  // "Erstellen" oft zu früh ohne die Verzugszins-Hinweise zu lesen.
+  const [step, setStep] = React.useState<1 | 2>(1)
+  React.useEffect(() => {
+    if (!open) setStep(1)
+  }, [open])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="w-[min(560px,calc(100vw-2rem))] max-w-none">
         <DialogHeader>
           <DialogTitle>Zahlungserinnerung / Mahnung erstellen</DialogTitle>
           <DialogDescription>
@@ -89,7 +97,30 @@ export function MahnungDialog({ invoice, open, onOpenChange }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4">
+        {/* Step Indicator */}
+        <div className="text-muted-foreground mb-1 flex items-center gap-3 text-xs">
+          <span className={cn("flex items-center gap-1.5", step === 1 && "text-foreground font-medium")}>
+            <span className={cn(
+              "flex size-5 items-center justify-center rounded-full text-[10px] font-semibold",
+              step === 1 ? "bg-primary text-primary-foreground" : "bg-muted",
+            )}>
+              {step > 1 ? <Check className="size-3" /> : "1"}
+            </span>
+            Mahnstufe
+          </span>
+          <span className="bg-border h-px flex-1" />
+          <span className={cn("flex items-center gap-1.5", step === 2 && "text-foreground font-medium")}>
+            <span className={cn(
+              "flex size-5 items-center justify-center rounded-full text-[10px] font-semibold",
+              step === 2 ? "bg-primary text-primary-foreground" : "bg-muted",
+            )}>
+              2
+            </span>
+            Bestätigung
+          </span>
+        </div>
+
+        <div className={cn("grid gap-4", step !== 1 && "hidden")}>
           <div>
             <p className="mb-2 text-xs font-medium tracking-wide uppercase text-muted-foreground">
               Mahnstufe wählen
@@ -168,35 +199,81 @@ export function MahnungDialog({ invoice, open, onOpenChange }: Props) {
             </div>
           ) : null}
 
-          <div className="bg-muted/50 rounded-xl border p-3 text-xs leading-relaxed text-muted-foreground">
-            <p>
-              Die Mahnung enthält Verzugszinsen nach §288 BGB (Basis + 5 p.p. bei
-              Verbrauchern, +9 p.p. bei B2B), eine konfigurierbare Mahngebühr
-              und — bei B2B-Rechnungen — die €40 Verzugspauschale nach §288 V
-              BGB (einmalig).
+        </div>
+
+        <div className={cn("grid gap-4", step !== 2 && "hidden")}>
+          <div className="rounded-xl border p-4">
+            <p className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide">
+              Du erstellst gleich
             </p>
+            <p className="text-lg font-semibold">
+              {stufe === "1"
+                ? "Stufe 1 — Zahlungserinnerung"
+                : stufe === "2"
+                  ? "Stufe 2 — 1. Mahnung"
+                  : "Stufe 3 — Letzte Mahnung"}
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Rechnung {invoice.number} · {formatMoney(outstanding)} offen
+            </p>
+          </div>
+
+          <div className="bg-muted/50 rounded-xl border p-3 text-xs leading-relaxed text-muted-foreground">
+            <p className="text-foreground mb-1 font-medium">Was im PDF steht:</p>
+            <ul className="list-disc space-y-0.5 pl-4">
+              <li>
+                Verzugszinsen nach §288 BGB (Basis + 5 p.p. bei Verbrauchern,
+                +9 p.p. bei B2B)
+              </li>
+              <li>Konfigurierbare Mahngebühr (Settings → Mahnwesen)</li>
+              <li>
+                Bei B2B: €40 Verzugspauschale nach §288 V BGB (einmalig pro
+                Forderung)
+              </li>
+              <li>Neue Zahlungsfrist + Hinweis auf gerichtliches Verfahren</li>
+            </ul>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            onClick={() => createMut.mutate(stufe)}
-            disabled={createMut.isPending}
-          >
-            {createMut.isPending ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <Bell />
-            )}
-            Erstellen & PDF öffnen
-          </Button>
+        <DialogFooter className="gap-2 sm:gap-2">
+          {step === 1 ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+              >
+                Abbrechen
+              </Button>
+              <Button onClick={() => setStep(2)}>
+                Weiter
+                <ArrowRight className="size-3.5" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setStep(1)}
+                disabled={createMut.isPending}
+              >
+                <ArrowLeft className="size-3.5" />
+                Zurück
+              </Button>
+              <Button
+                onClick={() => createMut.mutate(stufe)}
+                disabled={createMut.isPending}
+              >
+                {createMut.isPending ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Bell />
+                )}
+                Erstellen & PDF öffnen
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

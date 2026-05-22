@@ -55,6 +55,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { PaymentDialog } from "./payment-dialog"
 import { MahnungDialog } from "./mahnung-dialog"
 import { SendInvoiceDialog } from "./send-invoice-dialog"
+import { FinalizeConfirmDialog } from "./finalize-confirm-dialog"
 
 interface Props {
   invoice: Invoice
@@ -76,10 +77,13 @@ export function InvoiceActions({ invoice, clientEmail }: Props) {
     router.refresh()
   }
 
+  const [finalizeConfirmOpen, setFinalizeConfirmOpen] = React.useState(false)
+
   const finalizeMut = useMutation({
     mutationFn: () => finalizeInvoice(supabase, invoice.id),
     onSuccess: () => {
       toast.success("Rechnung finalisiert — Nummer vergeben")
+      setFinalizeConfirmOpen(false)
       invalidate()
     },
     onError: (e: Error) => toast.error(e.message),
@@ -207,7 +211,7 @@ export function InvoiceActions({ invoice, clientEmail }: Props) {
         {isDraft ? (
           <Button
             size="sm"
-            onClick={() => finalizeMut.mutate()}
+            onClick={() => setFinalizeConfirmOpen(true)}
             disabled={finalizeMut.isPending}
           >
             {finalizeMut.isPending ? (
@@ -218,6 +222,16 @@ export function InvoiceActions({ invoice, clientEmail }: Props) {
             {finalizeMut.isPending ? "Vergebe Nummer …" : "Finalisieren"}
           </Button>
         ) : null}
+
+        <FinalizeConfirmDialog
+          invoiceId={invoice.id}
+          open={finalizeConfirmOpen}
+          onOpenChange={(o) => {
+            if (!finalizeMut.isPending) setFinalizeConfirmOpen(o)
+          }}
+          onConfirm={() => finalizeMut.mutate()}
+          isPending={finalizeMut.isPending}
+        />
 
         {canPay ? (
           <Button
@@ -371,18 +385,32 @@ export function InvoiceActions({ invoice, clientEmail }: Props) {
           <DialogHeader>
             <DialogTitle>Storno-Rechnung erstellen</DialogTitle>
             <DialogDescription>
-              Erzeugt eine Storno-Rechnung mit negativen Beträgen und einer eigenen Nummer. Die Originalrechnung wird als „Storniert&ldquo; markiert und bleibt dauerhaft erhalten.
+              Erzeugt eine Storno-Rechnung mit negativen Beträgen und einer
+              eigenen Nummer. Die Originalrechnung wird als „Storniert&ldquo;
+              markiert und bleibt nach §14c UStG / GoBD dauerhaft im Archiv —
+              auch nach 10 Jahren noch.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
-            <Label htmlFor="storno-reason">Grund</Label>
+            <Label htmlFor="storno-reason">
+              Grund <span className="text-destructive">*</span>
+            </Label>
             <Textarea
               id="storno-reason"
               rows={3}
               placeholder="z. B. Falsche Adresse, Leistung abgebrochen, …"
               value={stornoReason}
               onChange={(e) => setStornoReason(e.target.value)}
+              aria-invalid={stornoReason.trim().length > 0 && stornoReason.trim().length < 3}
             />
+            <p className="text-muted-foreground text-xs">
+              Mindestens 3 Zeichen — Pflichtfeld für Audit & Steuerberater-Nachvollzug.
+            </p>
+          </div>
+          <div className="bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300 rounded-lg border p-3 text-xs">
+            <strong>Achtung:</strong> Dieser Schritt ist nicht rückgängig zu
+            machen. Die Originalrechnung erhält dauerhaft den Status
+            „Storniert&ldquo;.
           </div>
           <DialogFooter>
             <Button
@@ -393,12 +421,14 @@ export function InvoiceActions({ invoice, clientEmail }: Props) {
               Abbrechen
             </Button>
             <Button
-              onClick={() => stornoMut.mutate(stornoReason)}
-              disabled={stornoMut.isPending}
+              onClick={() => stornoMut.mutate(stornoReason.trim())}
+              disabled={
+                stornoMut.isPending || stornoReason.trim().length < 3
+              }
               className="bg-amber-600 hover:bg-amber-700"
             >
               {stornoMut.isPending ? <Loader2 className="animate-spin" /> : null}
-              Storno erstellen
+              Verbindlich stornieren
             </Button>
           </DialogFooter>
         </DialogContent>
