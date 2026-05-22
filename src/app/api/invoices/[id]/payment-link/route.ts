@@ -14,6 +14,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
+import { validateOrigin } from "@/lib/api/csrf"
 import { getStripe } from "@/lib/billing/stripe"
 import type { Invoice } from "@/types/database.types"
 
@@ -24,6 +25,8 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
   const { id } = await context.params
   const supabase = await createClient()
   const {
@@ -151,6 +154,8 @@ export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
   const { id } = await context.params
   const supabase = await createClient()
   const {

@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
+import { validateOrigin } from "@/lib/api/csrf"
 import type { RecurringExpense } from "@/types/database.types"
 
 export const runtime = "nodejs"
@@ -15,6 +16,8 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
   const { id } = await context.params
   const supabase = await createClient()
   const {
@@ -38,9 +41,11 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
   const { id } = await context.params
   const supabase = await createClient()
   const {

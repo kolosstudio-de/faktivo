@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
+import { validateOrigin } from "@/lib/api/csrf"
 import { advanceNextDue } from "@/lib/recurring"
 import type { RecurringExpense } from "@/types/database.types"
 
@@ -33,6 +34,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
   const supabase = await createClient()
   const {
     data: { user },

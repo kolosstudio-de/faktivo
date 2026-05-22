@@ -16,6 +16,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 
 import { createClient } from "@/lib/supabase/server"
+import { validateOrigin } from "@/lib/api/csrf"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -225,6 +226,8 @@ async function extractWithClaude(
 }
 
 export async function POST(request: NextRequest) {
+  const originError = validateOrigin(request)
+  if (originError) return originError
   const supabase = await createClient()
   const {
     data: { user },
