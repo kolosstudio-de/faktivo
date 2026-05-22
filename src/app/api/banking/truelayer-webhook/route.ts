@@ -6,15 +6,17 @@
  * Doc: https://docs.truelayer.com/docs/data-api-webhooks
  *
  * Header:
- *   x-tl-signature  — JWS-Signature über den raw body, validierbar via JWKS
+ *   Tl-Signature   — JWS-Compact (ES512, detached payload) über den raw body
+ *   Tl-Webhook-Id  — eindeutige Event-ID (Replay-Schutz)
  *
  * Body (events):
- *   { type: "transactions.added", account_id, user_id (TL ours), provider, ... }
+ *   { type: "transactions.added", event_id, account_id, connection_id, ... }
  *
  * Wir:
- *   1. Validieren Signature (in Prod) — in Dev übersprungen, falls TRUELAYER_WEBHOOK_SKIP_SIG=1
- *   2. Persistieren raw event in banking_webhook_events
- *   3. Triggern sync für betroffene Konto via Service-Client
+ *   1. Validieren Signature via JWKS (siehe truelayer-signature.ts)
+ *   2. Deduplizieren via event_id (DB unique-constraint)
+ *   3. Persistieren raw event in banking_webhook_events
+ *   4. Triggern sync für betroffene Konto via Service-Client
  */
 
 import { NextResponse, type NextRequest } from "next/server"
@@ -32,6 +34,10 @@ import {
   outstandingFromInvoice,
   type InvoiceMatchCandidate,
 } from "@/lib/banking/match"
+import {
+  verifyTruelayerSignature,
+  extractEventId,
+} from "@/lib/banking/truelayer-signature"
 import type { BankConnection, Invoice } from "@/types/database.types"
 
 export const runtime = "nodejs"
@@ -50,36 +56,21 @@ interface TLWebhookEvent {
   }
 }
 
-/**
- * In Prod: validiere die JWS-Signatur via TrueLayer's JWKS.
- * https://docs.truelayer.com/docs/data-api-webhooks#verifying-webhook-signatures
- *
- * Für Dev: TRUELAYER_WEBHOOK_SKIP_SIG=1 setzen → wir vertrauen dem POST.
- * Für Prod: implementiere die Validierung mit `jose` oder ähnlich.
- */
-async function verifySignature(
-  request: NextRequest,
-  rawBody: string
-): Promise<boolean> {
-  if (process.env.TRUELAYER_WEBHOOK_SKIP_SIG === "1") return true
-  const sig = request.headers.get("x-tl-signature")
-  if (!sig) return false
-  // TODO: production validation via JWKS — outline:
-  //   1. Fetch JWKS from https://webhooks.truelayer.com/.well-known/jwks
-  //   2. Validate JWS over rawBody using `jose` library
-  //   3. Check kid, alg, iss, jti for replay-protection
-  // Für jetzt: return true wenn signature header vorhanden ist (DEV-mode).
-  return Boolean(sig && rawBody)
-}
-
 export async function POST(request: NextRequest) {
   const rawBody = await request.text()
-  const valid = await verifySignature(request, rawBody)
-  if (!valid) {
-    return NextResponse.json(
-      { error: "invalid signature" },
-      { status: 401 }
+  const sigHeader =
+    request.headers.get("tl-signature") ??
+    request.headers.get("x-tl-signature")
+
+  const sigResult = await verifyTruelayerSignature(rawBody, sigHeader)
+  if (!sigResult.valid) {
+    // Bewusst KEINE Details preisgeben — nur 401 zurück. Reason landet im Log.
+    console.warn(
+      "[truelayer-webhook] signature rejected:",
+      sigResult.reason,
+      sigResult.headerInfo,
     )
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 })
   }
 
   let payload: TLWebhookEvent
@@ -91,17 +82,36 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Persist event for audit + replay
-  const { data: eventRow } = await supabase
+  // Replay-Schutz: event_id aus Header (bevorzugt) oder Body
+  const eventId = extractEventId(
+    request.headers.get("tl-webhook-id"),
+    payload,
+  )
+
+  // Insert mit ON CONFLICT-Verhalten via unique-Constraint (provider, event_id).
+  // Bei Duplicate: PostgREST liefert 23505 → wir antworten idempotent 200.
+  const { data: eventRow, error: insertErr } = await supabase
     .from("banking_webhook_events")
     .insert({
       provider: "truelayer",
+      event_id: eventId,
       event_type: payload.type,
       payload_jsonb: payload as unknown as Record<string, unknown>,
-      signature: request.headers.get("x-tl-signature"),
+      signature: sigHeader,
     })
     .select()
     .single()
+
+  if (insertErr) {
+    // 23505 = unique_violation → schon gesehen, idempotent ack
+    const isDuplicate =
+      "code" in insertErr && (insertErr as { code?: string }).code === "23505"
+    if (isDuplicate) {
+      return NextResponse.json({ ok: true, deduped: true })
+    }
+    console.error("[truelayer-webhook] insert error:", insertErr)
+    // Nicht-fatal — wir machen weiter ohne Audit-Zeile
+  }
 
   // Find connection by tl_connection_id
   const tlConnId = payload.connection_id ?? null
