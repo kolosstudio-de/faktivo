@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test:money": "tsx scripts/test-money.mjs",
+    "test:jobcenter": "tsx scripts/test-jobcenter.mjs",
+    "test:pdf": "node scripts/test-pdf-render.mjs",
+    "test": "npm run test:money && npm run test:jobcenter && npm run test:pdf"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
@@ -73,6 +78,7 @@
     "eslint-config-next": "16.2.4",
     "sharp": "^0.34.5",
     "tailwindcss": "^4",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }

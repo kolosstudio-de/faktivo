@@ -1,0 +1,78 @@
+# Faktivo CI — läuft auf jedem Push + PR.
+#
+# Drei parallele Jobs:
+#  1. lint     — ESLint (Next-Config) auf das ganze repo
+#  2. typecheck — tsc --noEmit (Compile-Errors catchen, ohne Build-Artefakte)
+#  3. unit     — die 3 Pure-Node-Unit-Tests aus `scripts/`
+#                (money + jobcenter + pdf-render — KEINE Supabase nötig)
+#
+# Build (next build) bewusst NICHT in CI, weil:
+#  - braucht ENV-Vars für Sentry / Stripe / TrueLayer / Supabase
+#  - Vercel macht den richtigen Build sowieso auf seiner Seite
+#  - typecheck-Job catcht alle TS-Errors die der Build catchen würde
+#
+# DB-Integration-Tests (eks-vergleich-test, smoke-test-routes) sind manuell —
+# brauchen lokales Supabase + dev server.
+#
+# Stand 2026-06-04
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Vorherige Runs für denselben Branch abbrechen, sobald ein neuer Push
+# eintrifft — spart Action-Minuten bei rapider iteration.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ESLint)
+    runs-on: ubuntu-latest
+    # Stand 2026-06-04: 11 pre-existing `react-hooks/set-state-in-effect`
+    # Violations in alten Komponenten (theme-provider, use-display-prefs, …).
+    # CI bricht NICHT ab daran, sondern reportiert nur — sobald die alten
+    # Verstöße bereinigt sind, `continue-on-error: false` setzen, damit neue
+    # Verstöße echte Build-Blocker werden.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm run lint
+
+  typecheck:
+    name: TypeScript (tsc --noEmit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm run typecheck
+
+  unit:
+    name: Unit tests (money + jobcenter + pdf)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      # tsx wird benötigt, damit die .mjs-Tests `src/lib/*.ts` direkt importieren
+      # können (kein vorgeschalteter Build nötig).
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm run test:money
+      - run: npm run test:jobcenter
+      - run: npm run test:pdf
