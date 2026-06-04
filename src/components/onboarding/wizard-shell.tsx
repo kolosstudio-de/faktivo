@@ -4,6 +4,7 @@ import * as React from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslations } from "next-intl"
 
 import { useSupabase } from "@/lib/hooks/use-supabase"
 import { useRouter } from "@/i18n/navigation"
@@ -33,7 +34,11 @@ import { BankingStep } from "./steps/banking-step"
 import { BuergergeldStep } from "./steps/buergergeld-step"
 import { DoneStep } from "./steps/done-step"
 
-const SKIP_CONFIRM_TOKEN = "VERSTANDEN"
+// Skip-Confirm-Token wird per Locale aus `messages/*.json::Onboarding.skipConfirmToken`
+// gezogen — de: "VERSTANDEN", en: "UNDERSTOOD", ru: "ПОНИМАЮ", uk: "РОЗУМІЮ".
+// Der frühere globale Konstante `SKIP_CONFIRM_TOKEN = "VERSTANDEN"` zwang
+// alle Nicht-DE-Nutzer ein deutsches Wort einzutippen — siehe Regression
+// 2026-06-03, Issue #4.
 
 /**
  * Minimum-required fields before the wizard can be skipped.
@@ -475,6 +480,8 @@ function SkipDialog({
   onConfirm: () => void
   pending: boolean
 }) {
+  const t = useTranslations("Onboarding")
+  const tCommon = useTranslations("Common")
   const [open, setOpen] = React.useState(false)
   const [token, setToken] = React.useState("")
   const { missing, buergergeldMissing } = React.useMemo(
@@ -482,9 +489,13 @@ function SkipDialog({
     [data]
   )
 
+  // Locale-spezifisches Bestätigungs-Token. Vergleich case-insensitive, damit
+  // "verstanden" / "VERSTANDEN" / "Verstanden" alle akzeptiert werden.
+  const expectedToken = t("skipConfirmToken")
   const blocked = missing.length > 0 || buergergeldMissing.length > 0
   const allMissing = [...missing, ...buergergeldMissing]
-  const tokenMatches = token.trim().toUpperCase() === SKIP_CONFIRM_TOKEN
+  const tokenMatches =
+    token.trim().toUpperCase() === expectedToken.toUpperCase()
 
   return (
     <AlertDialog
@@ -500,24 +511,19 @@ function SkipDialog({
           disabled={pending}
           className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2 disabled:opacity-50"
         >
-          {pending
-            ? "Wird übersprungen …"
-            : "Mit unvollständigen Daten fortfahren"}
+          {pending ? t("skipButtonPending") : t("skipButtonSoft")}
         </button>
       </AlertDialogTrigger>
       <AlertDialogContent className="max-w-md sm:max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle>Onboarding überspringen?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Ohne Stammdaten können EKS, Rechnungen und Mahnwesen nicht erstellt
-            werden. Du kannst dies später unter Einstellungen vervollständigen.
-          </AlertDialogDescription>
+          <AlertDialogTitle>{t("skipDialogTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("skipDialogHint")}</AlertDialogDescription>
         </AlertDialogHeader>
 
         {blocked ? (
           <div className="grid gap-2 text-left">
             <p className="text-foreground text-xs font-medium">
-              Folgende Pflichtfelder sind leer:
+              {t("skipDialogMissingHeader")}
             </p>
             <ul className="text-muted-foreground list-disc pl-5 text-xs">
               {allMissing.map((field) => (
@@ -525,15 +531,12 @@ function SkipDialog({
               ))}
             </ul>
             <p className="text-muted-foreground mt-2 text-xs">
-              Gehe zurück, fülle mindestens die Stammdaten aus, und versuche es
-              erneut. Tippe „{SKIP_CONFIRM_TOKEN}“ um trotzdem fortzufahren
-              (nicht empfohlen).
+              {t("skipDialogConfirmHint", { token: expectedToken })}
             </p>
           </div>
         ) : (
           <p className="text-muted-foreground text-left text-xs">
-            Alle Pflichtfelder sind ausgefüllt. Tippe „{SKIP_CONFIRM_TOKEN}“ zur
-            Bestätigung.
+            {t("skipDialogReady", { token: expectedToken })}
           </p>
         )}
 
@@ -542,19 +545,19 @@ function SkipDialog({
             htmlFor="skip-confirm-token"
             className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
           >
-            Bestätigung
+            {t("skipDialogConfirmLabel")}
           </label>
           <Input
             id="skip-confirm-token"
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            placeholder={SKIP_CONFIRM_TOKEN}
+            placeholder={expectedToken}
             className="font-mono"
           />
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             disabled={!tokenMatches || pending}
@@ -565,7 +568,7 @@ function SkipDialog({
             }}
           >
             {pending ? <Loader2 className="animate-spin" /> : null}
-            Trotzdem überspringen
+            {t("skipConfirmAction")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
