@@ -5,6 +5,7 @@ import { createHash } from "node:crypto"
 import { createClient } from "@/lib/supabase/server"
 import { DocumentPdf } from "@/lib/pdf/document-pdf"
 import { generateGirocodeDataUrl } from "@/lib/pdf/sepa-girocode"
+import { normalizeInvoiceLocale } from "@/lib/vat"
 import type {
   Client,
   Invoice,
@@ -139,6 +140,14 @@ export async function GET(
     )
   }
 
+  // Locale-Priorität: Query-Param `?locale=` (z. B. wenn Frontend einen Test-
+  // Render in anderer Sprache anstößt) > `settings.invoice_language_default`
+  // > "de" (Default per Gesetz). normalizeInvoiceLocale fängt Garbage ab.
+  const localeFromQuery = new URL(request.url).searchParams.get("locale")
+  const invoiceLocale = normalizeInvoiceLocale(
+    localeFromQuery ?? settings.invoice_language_default
+  )
+
   const pdfStream = await renderToStream(
     DocumentPdf({
       kind: kind as "invoice" | "quote",
@@ -152,6 +161,7 @@ export async function GET(
       showSignature: Boolean((doc as Invoice | Quote).show_signature),
       stampDataUrl,
       showStamp: Boolean((doc as Invoice | Quote).show_stamp),
+      locale: invoiceLocale,
     })
   )
 

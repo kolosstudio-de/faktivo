@@ -125,6 +125,9 @@ export function LoginForm() {
   }
 
   // ---------- Sign In ----------
+  // Geht seit 2026-06-03 über serverseitigen Proxy `/api/auth/signin`, der
+  // IP+Email rate-limited (5/5 min). Der lokale UX-Schild bleibt als zweite
+  // Verteidigungslinie + zur Anzeige der Countdown-UI.
   const onSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateSignIn()) return
@@ -141,27 +144,65 @@ export function LoginForm() {
       return
     }
 
-    const supabase = createClient()
     setBusy("signin")
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    let res: Response
+    try {
+      res = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email, password }),
+      })
+    } catch (e) {
+      setBusy(null)
+      toast.error(t("error"), {
+        description: e instanceof Error ? e.message : String(e),
+      })
+      return
+    }
     setBusy(null)
-    if (!error) {
+
+    if (res.ok) {
       clearLoginAttempts(email)
       toast.success(t("signIn"))
       goToDashboard()
       return
     }
-    // Record the failure and update the countdown.
+
+    // Server-Antwort verarbeiten — wir spiegeln den Rate-Limit-Block des
+    // Servers in den lokalen State, damit Countdown weiterläuft, auch wenn
+    // localStorage leer war.
+    if (res.status === 429) {
+      const data = (await res.json().catch(() => ({}))) as {
+        retry_after_seconds?: number
+      }
+      const seconds = data.retry_after_seconds ?? pre.secondsRemaining ?? 300
+      setRateBlock({ blocked: true, secondsRemaining: seconds })
+      // Spiegel-Eintrag im localStorage, damit der UI-Countdown korrekt tickt,
+      // selbst wenn der User die Seite reloaded.
+      recordFailedLoginAttempt(email)
+      toast.error(t("errorRateLimitTitle"), {
+        description: t("errorRateLimitDescription", { seconds }),
+      })
+      return
+    }
+
+    // Failure-Tracking lokal weiterführen
     const post = recordFailedLoginAttempt(email)
     setRateBlock({
       blocked: !post.allowed,
       secondsRemaining: post.secondsRemaining,
     })
 
-    const msg = error.message.toLowerCase()
-    if (msg.includes("email not confirmed")) toast.error(t("errorEmailNotConfirmed"))
-    else if (msg.includes("invalid")) {
-      // Show remaining-attempts hint to be transparent.
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string
+      message?: string
+    }
+    const code = data.error ?? "unknown"
+
+    if (code === "email_not_confirmed") {
+      toast.error(t("errorEmailNotConfirmed"))
+    } else if (code === "invalid_credentials") {
       if (post.allowed && post.remainingAttempts > 0) {
         toast.error(t("errorInvalid"), {
           description: t("errorAttemptsRemaining", {
@@ -178,7 +219,7 @@ export function LoginForm() {
         toast.error(t("errorInvalid"))
       }
     } else {
-      toast.error(t("error"), { description: error.message })
+      toast.error(t("error"), { description: data.message ?? code })
     }
   }
 

@@ -2,7 +2,15 @@
 
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, ArrowRight, Bell, Check, Download, Loader2 } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bell,
+  Check,
+  Download,
+  Loader2,
+  Send,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { useSupabase } from "@/lib/hooks/use-supabase"
@@ -75,6 +83,50 @@ export function MahnungDialog({ invoice, open, onOpenChange }: Props) {
       window.open(`/api/mahnung/${m.id}`, "_blank")
     },
     onError: (e: Error) => toast.error(e.message),
+  })
+
+  // Mahnung per E-Mail senden — geht über `/api/mahnung/[id]/send` (validate-
+  // Origin + auth + Resend / Dry-Run). Server sperrt erneuten Versand per
+  // 409; wir spiegeln das in den Toast. Per-Row-Pending-State, damit nur die
+  // Zeile spinnt, die gerade sendet.
+  const [sendingId, setSendingId] = React.useState<string | null>(null)
+  const sendMut = useMutation({
+    mutationFn: async (id: string) => {
+      setSendingId(id)
+      const res = await fetch(`/api/mahnung/${id}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({}),
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        error?: string
+        provider?: string
+        message?: string
+      }
+      if (!res.ok) {
+        const err = new Error(
+          data.message ?? data.error ?? `HTTP ${res.status}`,
+        )
+        ;(err as Error & { status?: number }).status = res.status
+        throw err
+      }
+      return data
+    },
+    onSuccess: (data) => {
+      const provider = data.provider === "resend" ? "per E-Mail" : "(Dry-Run)"
+      toast.success(`Mahnung gesendet ${provider}`)
+      queryClient.invalidateQueries({ queryKey: ["mahnungen", invoice.id] })
+    },
+    onError: (e: Error & { status?: number }) => {
+      if (e.status === 409) {
+        toast.warning("Bereits gesendet", { description: e.message })
+      } else {
+        toast.error(e.message)
+      }
+    },
+    onSettled: () => setSendingId(null),
   })
 
   const outstanding = invoice.total_cents - invoice.paid_cents
@@ -179,11 +231,37 @@ export function MahnungDialog({ invoice, open, onOpenChange }: Props) {
                     <span className="text-muted-foreground ml-2 text-xs">
                       · {new Date(m.issued_at).toLocaleDateString("de-DE")}
                     </span>
+                    {m.sent_at ? (
+                      <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                        <Check className="size-2.5" />
+                        gesendet
+                      </span>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs">
                       {formatMoney(m.total_cents)}
                     </span>
+                    {/* Send-Button: deaktiviert, wenn bereits gesendet — server
+                        gibt 409 zurück. Spinner pro-Row über sendingId. */}
+                    <Button
+                      size="icon"
+                      variant={m.sent_at ? "ghost" : "default"}
+                      className="size-7"
+                      title={
+                        m.sent_at
+                          ? `Bereits gesendet am ${new Date(m.sent_at).toLocaleString("de-DE")}`
+                          : "Per E-Mail an Kunde senden"
+                      }
+                      disabled={!!m.sent_at || sendingId === m.id}
+                      onClick={() => sendMut.mutate(m.id)}
+                    >
+                      {sendingId === m.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Send className="size-3.5" />
+                      )}
+                    </Button>
                     <Button size="icon" variant="ghost" asChild className="size-7">
                       <a
                         href={`/api/mahnung/${m.id}`}

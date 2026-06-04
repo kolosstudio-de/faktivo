@@ -47,14 +47,28 @@ export async function finalizeQuote(
   return data as Quote | null
 }
 
+/**
+ * Storno-Begründung ist seit 2026-06-03 serverseitig erforderlich
+ * (min. 3 Zeichen nach trim, RPC raised sqlstate `22023` sonst — siehe
+ * Migration `20260603000001_storno_require_reason.sql`). Daher: `reason`
+ * pflicht-Parameter, kein conditional-spread mehr.
+ */
 export async function stornoInvoice(
   supabase: AnySupabase,
   invoiceId: string,
-  reason?: string
+  reason: string
 ): Promise<Invoice | null> {
+  const cleaned = (reason ?? "").trim()
+  if (cleaned.length < 3) {
+    // Fast-fail clientseitig, bevor wir ein Roundtrip schicken — die Fehlermeldung
+    // entspricht dem Server-RAISE, damit UI-Handling identisch bleibt.
+    throw new Error(
+      "storno_invoice: reason required (min 3 chars after trim)"
+    )
+  }
   const { data, error } = await supabase.rpc("storno_invoice", {
     p_invoice_id: invoiceId,
-    ...(reason ? { p_reason: reason } : {}),
+    p_reason: cleaned,
   })
   if (error) throw error
   return data as Invoice | null

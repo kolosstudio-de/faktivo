@@ -699,7 +699,10 @@ export interface Database {
         Returns: Quote
       }
       storno_invoice: {
-        Args: { p_invoice_id: string; p_reason?: string }
+        // Stand 2026-06-03: p_reason ist serverseitig erforderlich (min 3 Zeichen,
+        // RAISE EXCEPTION '22023' bei Verstoß) — siehe Migration
+        // 20260603000001_storno_require_reason.sql
+        Args: { p_invoice_id: string; p_reason: string }
         Returns: Invoice
       }
     }

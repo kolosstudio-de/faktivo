@@ -11,7 +11,12 @@ import {
 import type { Style } from "@react-pdf/types"
 
 import { formatMoney, vatBreakdown } from "@/lib/money"
-import { invoiceNotices } from "@/lib/vat"
+import {
+  invoiceNotices,
+  kleinunternehmerLabel,
+  normalizeInvoiceLocale,
+  type InvoiceLocale,
+} from "@/lib/vat"
 import { clientDisplayName } from "@/lib/utils/client-display"
 import type {
   Client,
@@ -349,6 +354,14 @@ interface DocumentPdfProps {
   /** Stamp URL/data URL — only rendered when showStamp is true */
   stampDataUrl?: string
   showStamp?: boolean
+  /**
+   * Sprache des Rechnungs-PDFs. Wirkt aktuell auf die Steuer-Hinweise (§19/§13b)
+   * und das Kleinunternehmer-Label über der Positions-Tabelle. Default `"de"`
+   * — die juristisch eindeutige Sprache für deutsche Steuer-Belege. Wenn der
+   * Endkunde im Ausland sitzt, kann der Aufrufer (`/api/pdf/...`) auf en/ru/uk
+   * wechseln; die §-Verweise bleiben in jedem Fall deutsch.
+   */
+  locale?: InvoiceLocale
 }
 
 export function DocumentPdf(props: DocumentPdfProps) {
@@ -364,7 +377,13 @@ export function DocumentPdf(props: DocumentPdfProps) {
     showSignature,
     stampDataUrl,
     showStamp,
+    locale: localeProp,
   } = props
+  // Final-Locale für Steuer-Notizen: prop > settings.invoice_language_default > "de".
+  // normalizeInvoiceLocale fängt Garbage-Input (z. B. "ua" oder "de-DE") ab.
+  const locale: InvoiceLocale = normalizeInvoiceLocale(
+    localeProp ?? settings.invoice_language_default
+  )
   const isInvoice = kind === "invoice"
   const inv = doc as Invoice
   const q = doc as Quote
@@ -378,11 +397,14 @@ export function DocumentPdf(props: DocumentPdfProps) {
       isKleinunternehmer: isKleinunt,
       reverseCharge: isReverseCharge,
     },
-    "de"
+    locale
   ).filter((n) => {
     // Den §19-Hinweis filtern wir raus — dieser wird bereits als
-    // „Kleinunternehmer gem. § 19 UStG" über der Tabelle angezeigt.
-    if (isKleinunt && /Kleinunternehmer|§\s*19/i.test(n)) return false
+    // Kurz-Label (siehe `kleinunternehmerLabel(locale)`) über der Tabelle
+    // angezeigt. Regex passt auf alle Locale-Varianten (alle enthalten "§ 19").
+    if (isKleinunt && /§\s*19|Kleinunternehmer|small.?business|Малы[йи].?бизнес|малий\s+бізнес/i.test(n)) {
+      return false
+    }
     return true
   })
 
@@ -498,9 +520,11 @@ export function DocumentPdf(props: DocumentPdfProps) {
           ) : null}
         </View>
 
-        {/* Kleinunternehmer-Hinweis (single line above table) */}
+        {/* Kleinunternehmer-Hinweis (single line above table).
+            Locale wirkt nur auf den erklärenden Text — der §-Verweis bleibt
+            in jeder Sprache erhalten. */}
         {isKleinunt ? (
-          <Text style={styles.klein}>Kleinunternehmer gem. § 19 UStG</Text>
+          <Text style={styles.klein}>{kleinunternehmerLabel(locale)}</Text>
         ) : null}
 
         {/* POSITIONS TABLE */}

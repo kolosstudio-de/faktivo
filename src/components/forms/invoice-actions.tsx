@@ -111,8 +111,11 @@ export function InvoiceActions({ invoice, clientEmail }: Props) {
   })
 
   const stornoMut = useMutation({
+    // reason ist im Dialog auf min. 3 Zeichen vorvalidiert (siehe Button-disabled-Logik);
+    // wir geben den getrimmten String 1:1 weiter — die Helper-Funktion fast-fails
+    // bei < 3 Zeichen mit derselben Meldung wie der serverseitige Check.
     mutationFn: (reason: string) =>
-      stornoInvoice(supabase, invoice.id, reason || undefined),
+      stornoInvoice(supabase, invoice.id, reason),
     onSuccess: (storno) => {
       toast.success("Storno-Rechnung erstellt")
       setStornoOpen(false)

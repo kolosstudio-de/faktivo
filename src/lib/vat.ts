@@ -15,12 +15,33 @@ export type VatRate = (typeof VAT_RATES)[number] | number // keep loose for edge
  * §19 UStG notice — updated per Jahressteuergesetz 2024 (in force 2025-01-01).
  * Kleinunternehmer revenue is now §4 steuerfrei (not merely "nicht erhoben").
  * Must appear on every invoice while the flag is on.
+ *
+ * Localisations beibehalten den expliziten Paragraphenverweis (§ 19 UStG),
+ * weil die rechtliche Grundlage deutsch bleibt — übersetzt wird nur der
+ * erklärende Satz, damit nicht-deutschsprachige Empfänger den Hinweis
+ * verstehen. Vgl. § 14 Abs. 6 UStG i.V.m. UStDV § 33.
  */
 export const KLEINUNTERNEHMER_NOTICE_DE =
   "Kein Steuerausweis aufgrund Anwendung der Kleinunternehmerregelung nach § 19 UStG."
 
 export const KLEINUNTERNEHMER_NOTICE_EN =
   "No VAT charged under the small-business rule pursuant to § 19 UStG."
+
+export const KLEINUNTERNEHMER_NOTICE_RU =
+  "НДС не выставляется в соответствии с правилом для малого бизнеса § 19 UStG (Германия)."
+
+export const KLEINUNTERNEHMER_NOTICE_UK =
+  "ПДВ не нараховується відповідно до правила для малого бізнесу § 19 UStG (Німеччина)."
+
+/**
+ * Kurz-Label, das im PDF als eigenständige Zeile über der Positions-Tabelle
+ * steht (`document-pdf.tsx:503`). Bewusst kürzer als die vollständige Notiz —
+ * das vollständige Statement steht im Notizen-Block am Fuß.
+ */
+export const KLEINUNTERNEHMER_LABEL_DE = "Kleinunternehmer gem. § 19 UStG"
+export const KLEINUNTERNEHMER_LABEL_EN = "Small business per § 19 UStG"
+export const KLEINUNTERNEHMER_LABEL_RU = "Малый бизнес согл. § 19 UStG"
+export const KLEINUNTERNEHMER_LABEL_UK = "Малий бізнес згідно § 19 UStG"
 
 /**
  * 2025 Kleinunternehmer thresholds (per Jahressteuergesetz 2024, BGBl. I 2024 Nr. 387).
@@ -38,6 +59,12 @@ export const REVERSE_CHARGE_NOTICE_DE =
 
 export const REVERSE_CHARGE_NOTICE_EN =
   "VAT liability transferred to the recipient (§ 13b UStG / reverse charge)."
+
+export const REVERSE_CHARGE_NOTICE_RU =
+  "Обязанность по уплате НДС возложена на получателя (§ 13b UStG, reverse charge)."
+
+export const REVERSE_CHARGE_NOTICE_UK =
+  "Обов'язок зі сплати ПДВ покладено на одержувача (§ 13b UStG, reverse charge)."
 
 export interface VatContext {
   isKleinunternehmer: boolean
@@ -59,24 +86,63 @@ export function effectiveVatRate(nominal: number, ctx: VatContext): number {
 }
 
 /**
+ * Sprach-Codes, die wir auf Rechnungen unterstützen. "uk" = ukrainisch.
+ * Müssen mit `settings.invoice_language_default` synchron bleiben.
+ */
+export type InvoiceLocale = "de" | "en" | "ru" | "uk"
+
+/**
+ * Defensiver Locale-Normalizer — UI-Locales kommen als Free-Text aus settings
+ * oder Query-Params. Alles, was nicht in unserer Liste ist, fällt auf "de"
+ * zurück (das ist die juristisch wirksame Sprache).
+ */
+export function normalizeInvoiceLocale(input: unknown): InvoiceLocale {
+  if (typeof input !== "string") return "de"
+  const lower = input.toLowerCase().slice(0, 2)
+  if (lower === "en" || lower === "ru" || lower === "uk") return lower
+  return "de"
+}
+
+const KLEIN_NOTICE: Record<InvoiceLocale, string> = {
+  de: KLEINUNTERNEHMER_NOTICE_DE,
+  en: KLEINUNTERNEHMER_NOTICE_EN,
+  ru: KLEINUNTERNEHMER_NOTICE_RU,
+  uk: KLEINUNTERNEHMER_NOTICE_UK,
+}
+
+const REVERSE_NOTICE: Record<InvoiceLocale, string> = {
+  de: REVERSE_CHARGE_NOTICE_DE,
+  en: REVERSE_CHARGE_NOTICE_EN,
+  ru: REVERSE_CHARGE_NOTICE_RU,
+  uk: REVERSE_CHARGE_NOTICE_UK,
+}
+
+const KLEIN_LABEL: Record<InvoiceLocale, string> = {
+  de: KLEINUNTERNEHMER_LABEL_DE,
+  en: KLEINUNTERNEHMER_LABEL_EN,
+  ru: KLEINUNTERNEHMER_LABEL_RU,
+  uk: KLEINUNTERNEHMER_LABEL_UK,
+}
+
+/**
  * Which statutory notices must appear on the invoice footer, given the context.
  */
 export function invoiceNotices(
   ctx: VatContext,
-  locale: "de" | "en" | "ru" = "de"
+  locale: InvoiceLocale = "de"
 ): string[] {
   const notices: string[] = []
-  if (ctx.isKleinunternehmer) {
-    notices.push(
-      locale === "en" ? KLEINUNTERNEHMER_NOTICE_EN : KLEINUNTERNEHMER_NOTICE_DE
-    )
-  }
-  if (ctx.reverseCharge) {
-    notices.push(
-      locale === "en" ? REVERSE_CHARGE_NOTICE_EN : REVERSE_CHARGE_NOTICE_DE
-    )
-  }
+  if (ctx.isKleinunternehmer) notices.push(KLEIN_NOTICE[locale])
+  if (ctx.reverseCharge) notices.push(REVERSE_NOTICE[locale])
   return notices
+}
+
+/**
+ * Kurz-Label "Kleinunternehmer gem. § 19 UStG" in der gewählten Sprache,
+ * für die einzeilige Anzeige über der Positions-Tabelle.
+ */
+export function kleinunternehmerLabel(locale: InvoiceLocale = "de"): string {
+  return KLEIN_LABEL[locale]
 }
 
 /**
