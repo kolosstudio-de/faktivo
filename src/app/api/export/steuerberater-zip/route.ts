@@ -9,10 +9,31 @@
  *   /eks/                               — Anlage EKS PDFs (wenn Aufstocker)
  *   README.txt                          — Was ist drin + Anleitung
  *
- * Streaming via JSZip generateNodeStream — funktioniert bis ~500 MB.
+ * Output-Streaming (Stand 2026-06-04)
+ * -----------------------------------
+ * Vorher: `zip.generateAsync({type:"nodebuffer"})` baute den ganzen Archiv
+ * zuerst im RAM zusammen, danach sandte man `new NextResponse(buffer)` —
+ * d.h. Peak-Memory war ≈ 2× Archivgröße (alle Eingabe-Buffer im JSZip-Tree
+ * PLUS der finale Output-Buffer). Bei einem Jahres-Paket mit ~1000 PDFs
+ * + Belegen knackte das die 1-GB-Hobby-Grenze von Vercel.
+ *
+ * Jetzt: `zip.generateNodeStream({streamFiles:true})` emittiert Chunks,
+ * sobald sie komprimiert sind. Wir wickeln den Node-Readable in einen
+ * Web-ReadableStream (`Readable.toWeb`) und geben den direkt an die
+ * Response zurück. Damit:
+ *   - kein nodebuffer-Assembly mehr → Output-Peak entfällt
+ *   - Chunked Transfer-Encoding → Browser kann progress-bar zeigen
+ *   - Memory-Peak halbiert (nur noch die Eingabe-Buffer im JSZip-Tree)
+ *
+ * Echte Entry-by-Entry-Streaming (so dass nicht mal alle PDFs auf einmal
+ * im RAM sind) erfordert `archiver`/`zip-stream` und ist in
+ * `.planning/REMAINING-TODOS.md` TODO 2 dokumentiert. Reicht für Vasyls
+ * aktuelles Datenvolumen + Vercel-Hobby; ab ~5000 Belegen pro Jahr lohnt
+ * sich der vollständige Refactor.
  */
 
 import { NextResponse, type NextRequest } from "next/server"
+import { Readable } from "node:stream"
 import JSZip from "jszip"
 import { renderToStream } from "@react-pdf/renderer"
 
@@ -212,25 +233,55 @@ Erstellt mit Kolos Digital Finanzen am ${new Date().toLocaleDateString("de-DE")}
     }
   }
 
-  // ─── Generate ZIP ───────────────────────────────────────────────────
-  const zipBuffer = await zip.generateAsync({
+  // ─── Generate ZIP (streaming) ───────────────────────────────────────
+  // generateNodeStream emittiert Chunks während die Komprimierung läuft.
+  // streamFiles=true bewirkt, dass JSZip pro Eingabe-Buffer NICHT erst die
+  // CRC32 vor-berechnet (was den ganzen Buffer einmal durchlesen würde,
+  // bevor irgendetwas raus geht) — stattdessen ZIP64-Trailer-Modus mit
+  // data-descriptors. Trade-off: leicht größere Headers, dafür echtes
+  // sliding-window Streaming.
+  const nodeStream = zip.generateNodeStream({
     type: "nodebuffer",
+    streamFiles: true,
     compression: "DEFLATE",
     compressionOptions: { level: 6 },
   })
 
+  // Fehler im Stream (z. B. zerstörte Eingabe-Buffer) sollen die Response
+  // sauber abbrechen statt unhandled-rejection in den Logs zu lassen.
+  // Der Browser sieht einen abgebrochenen Download, was korrekter ist
+  // als ein hängender 200 mit Truncation-Risiko.
+  nodeStream.on("error", (err) => {
+    console.error("[steuerberater-zip] stream error", err)
+  })
+
   const filename = `Steuerberater-Paket-${year}-${user.id.slice(0, 8)}.zip`
 
-  void rechnungenCount
-  void belegeCount
+  // Sample-Counter im Header — Steuerberater + Audit sehen sofort, wieviele
+  // Items im Archiv sind, ohne erst entpacken zu müssen.
+  const counterHeaders = {
+    "X-Faktivo-Rechnungen": String(rechnungenCount),
+    "X-Faktivo-Belege": String(belegeCount),
+  }
 
-  return new NextResponse(zipBuffer as unknown as BodyInit, {
+  // Readable.toWeb seit Node 17 stabil. Web-ReadableStream funktioniert
+  // direkt als BodyInit, Next.js + Vercel propagieren Chunked-Encoding
+  // transparent. JSZip typisiert seinen `NodeStream` als generischen
+  // `NodeJS.ReadableStream`, nicht als die konkrete Klasse `stream.Readable`
+  // — daher der Cast.
+  const webStream = Readable.toWeb(
+    nodeStream as unknown as Readable,
+  ) as unknown as ReadableStream
+
+  return new Response(webStream, {
     status: 200,
     headers: {
       "Content-Type": "application/zip",
-      "Content-Length": String(zipBuffer.length),
+      // KEIN Content-Length — wir wissen die Endgröße erst nach Compression.
+      // Chunked-Encoding setzt der HTTP/1.1-Server automatisch.
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "no-store",
+      ...counterHeaders,
     },
   })
 }

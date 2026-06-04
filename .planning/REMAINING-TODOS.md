@@ -46,8 +46,8 @@
 
 ## TODO 2 — Steuerberater-ZIP streaming
 
-**Severity:** Medium (operational)
-**Effort:** M (1-2 дня)
+**Severity:** Medium (operational) — частично закрыто 2026-06-04
+**Effort:** M (1-2 дня) для полного покрытия
 
 ### Проблема
 [src/app/api/export/steuerberater-zip/route.ts](../src/app/api/export/steuerberater-zip/route.ts)
@@ -55,13 +55,22 @@
 архива (1000+ PDF + DATEV CSV + XRechnung XML + audit log) ZIP может
 быть 100-500 MB → Vercel 60s timeout + 1 GB memory limit взорвутся.
 
-### Что нужно сделать
-1. Заменить `jszip` на `archiver` (Node.js streaming).
-2. Endpoint вернуть `ReadableStream` через `new Response(stream, ...)`.
-3. На клиенте — обычный `<a href download>` работает с streaming response.
-4. Опционально: pre-flight HEAD request чтобы оценить размер; если > 100 MB —
+### Что уже сделано (2026-06-04)
+- Output-Streaming: `zip.generateNodeStream({streamFiles:true})` +
+  `Readable.toWeb()` → ZIP chunks отдаются клиенту по мере сжатия,
+  без сборки nodebuffer на сервере. Peak memory ≈ 2× → 1× размера архива.
+- Counters в response headers (`X-Faktivo-Rechnungen`, `X-Faktivo-Belege`)
+- Stream error handler ловит зависшие compress-jobs
+
+### Что ещё нужно (полный refactor)
+1. **Entry-by-entry стриминг через `archiver`** — сейчас все PDF-буферы
+   ещё лежат в `zip.file()` registry до момента generateNodeStream.
+   С archiver можно: open response stream → invoice loop {render PDF →
+   `archive.append(buf)` → буфер сразу уходит в архив и освобождается}.
+   Peak memory становится O(размер одного PDF), не O(весь архив).
+2. Опционально: pre-flight HEAD request чтобы оценить размер; если > 100 MB —
    делать через background job (см. TODO 3) и присылать email с download-link.
-5. Если archiver не подходит — рассмотреть `tar-stream` или Cloudflare R2
+3. Если archiver не подходит — рассмотреть `tar-stream` или Cloudflare R2
    pre-signed multipart upload.
 
 ### Зависимости
