@@ -526,13 +526,13 @@ function SkipDialog({
             </ul>
             <p className="text-muted-foreground mt-2 text-xs">
               Gehe zurück, fülle mindestens die Stammdaten aus, und versuche es
-              erneut. Tippe „{SKIP_CONFIRM_TOKEN}" um trotzdem fortzufahren
+              erneut. Tippe „{SKIP_CONFIRM_TOKEN}“ um trotzdem fortzufahren
               (nicht empfohlen).
             </p>
           </div>
         ) : (
           <p className="text-muted-foreground text-left text-xs">
-            Alle Pflichtfelder sind ausgefüllt. Tippe „{SKIP_CONFIRM_TOKEN}" zur
+            Alle Pflichtfelder sind ausgefüllt. Tippe „{SKIP_CONFIRM_TOKEN}“ zur
             Bestätigung.
           </p>
         )}

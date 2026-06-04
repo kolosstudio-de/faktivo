@@ -15,7 +15,6 @@ import {
   Server,
   Shield,
   Smartphone,
-  Sparkles,
   Wallet,
 } from "lucide-react"
 import { motion, useScroll, useTransform, useReducedMotion } from "motion/react"

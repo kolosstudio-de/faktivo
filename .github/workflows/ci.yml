@@ -34,12 +34,12 @@ jobs:
   lint:
     name: Lint (ESLint)
     runs-on: ubuntu-latest
-    # Stand 2026-06-04: 11 pre-existing `react-hooks/set-state-in-effect`
-    # Violations in alten Komponenten (theme-provider, use-display-prefs, …).
-    # CI bricht NICHT ab daran, sondern reportiert nur — sobald die alten
-    # Verstöße bereinigt sind, `continue-on-error: false` setzen, damit neue
-    # Verstöße echte Build-Blocker werden.
-    continue-on-error: true
+    # Stand 2026-06-04: lint ist jetzt strict-blocking. Die 11 legacy
+    # set-state-in-effect-Violations wurden via eslint.config.mjs-Override
+    # akzeptiert (siehe Begründung dort); 2 react/no-unescaped-entities-
+    # Errors in wizard-shell.tsx wurden gefixt; 2 unused-imports entfernt.
+    # Übrig bleibt 1 `react-hooks/incompatible-library`-Warning (kein
+    # Error → CI grün).
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
