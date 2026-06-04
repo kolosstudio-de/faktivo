@@ -569,6 +569,16 @@
     "skipButtonSoft": "Продолжить с неполными данными",
     "skipButtonPending": "Пропускаем …",
     "skipConfirmAction": "Всё равно пропустить",
+    "skipField_first_name": "Имя",
+    "skipField_last_name": "Фамилия",
+    "skipField_iban": "IBAN",
+    "skipField_street": "Улица",
+    "skipField_zip": "Индекс (PLZ)",
+    "skipField_city": "Город",
+    "skipField_bewilligungszeitraum_start": "Bewilligungszeitraum (начало)",
+    "skipField_bewilligungszeitraum_end": "Bewilligungszeitraum (конец)",
+    "skipField_buergergeld_bedarf_monatlich_cents": "Месячная потребность (Bürgergeld)",
+    "skipField_regelbedarf_stufe": "Уровень Regelbedarf",
     "cancel": "Отмена"
   },
   "CashFlow": {

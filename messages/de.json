@@ -569,6 +569,16 @@
     "skipButtonSoft": "Mit unvollständigen Daten fortfahren",
     "skipButtonPending": "Wird übersprungen …",
     "skipConfirmAction": "Trotzdem überspringen",
+    "skipField_first_name": "Vorname",
+    "skipField_last_name": "Nachname",
+    "skipField_iban": "IBAN",
+    "skipField_street": "Straße",
+    "skipField_zip": "PLZ",
+    "skipField_city": "Stadt",
+    "skipField_bewilligungszeitraum_start": "Bewilligungszeitraum (Start)",
+    "skipField_bewilligungszeitraum_end": "Bewilligungszeitraum (Ende)",
+    "skipField_buergergeld_bedarf_monatlich_cents": "Monatlicher Bedarf",
+    "skipField_regelbedarf_stufe": "Regelbedarfsstufe",
     "cancel": "Abbrechen"
   },
   "CashFlow": {

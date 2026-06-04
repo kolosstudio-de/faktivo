@@ -569,6 +569,16 @@
     "skipButtonSoft": "Продовжити з неповними даними",
     "skipButtonPending": "Пропускаємо …",
     "skipConfirmAction": "Усе одно пропустити",
+    "skipField_first_name": "Ім'я",
+    "skipField_last_name": "Прізвище",
+    "skipField_iban": "IBAN",
+    "skipField_street": "Вулиця",
+    "skipField_zip": "Поштовий індекс (PLZ)",
+    "skipField_city": "Місто",
+    "skipField_bewilligungszeitraum_start": "Bewilligungszeitraum (початок)",
+    "skipField_bewilligungszeitraum_end": "Bewilligungszeitraum (кінець)",
+    "skipField_buergergeld_bedarf_monatlich_cents": "Місячна потреба (Bürgergeld)",
+    "skipField_regelbedarf_stufe": "Рівень Regelbedarf",
     "cancel": "Скасувати"
   },
   "CashFlow": {

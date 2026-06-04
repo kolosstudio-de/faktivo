@@ -458,18 +458,24 @@ export function WizardShell({ userId, initialStep, initialData }: Props) {
 
 // ─── Skip dialog ────────────────────────────────────────────────────────────
 
-const SKIP_FIELD_LABEL: Record<string, string> = {
-  first_name: "Vorname",
-  last_name: "Nachname",
-  iban: "IBAN",
-  street: "Straße",
-  zip: "PLZ",
-  city: "Stadt",
-  bewilligungszeitraum_start: "Bewilligungszeitraum (Start)",
-  bewilligungszeitraum_end: "Bewilligungszeitraum (Ende)",
-  buergergeld_bedarf_monatlich_cents: "Monatlicher Bedarf",
-  regelbedarf_stufe: "Regelbedarfsstufe",
-}
+// Feld-Labels werden zur Laufzeit per `t("skipField_<key>")` aufgelöst, weil
+// `useTranslations` nur in Komponenten erlaubt ist. Die `SKIP_FIELD_KEYS`-
+// Liste hier ist Single-Source-of-Truth — wenn ein Feld neu reinkommt,
+// auch in alle 4 `messages/*.json` als `skipField_<key>` ergänzen
+// (i18n-parity wird in CI über key-count enforced).
+const SKIP_FIELD_KEYS = [
+  "first_name",
+  "last_name",
+  "iban",
+  "street",
+  "zip",
+  "city",
+  "bewilligungszeitraum_start",
+  "bewilligungszeitraum_end",
+  "buergergeld_bedarf_monatlich_cents",
+  "regelbedarf_stufe",
+] as const
+type SkipFieldKey = (typeof SKIP_FIELD_KEYS)[number]
 
 function SkipDialog({
   data,
@@ -527,7 +533,14 @@ function SkipDialog({
             </p>
             <ul className="text-muted-foreground list-disc pl-5 text-xs">
               {allMissing.map((field) => (
-                <li key={field}>{SKIP_FIELD_LABEL[field] ?? field}</li>
+                <li key={field}>
+                  {/* Locale-aware label lookup. Wenn der Feldname kein bekannter
+                      Skip-Field-Key ist (z. B. ein Custom-Eintrag), fällt das
+                      Default-Label = raw-field-name zurück. */}
+                  {SKIP_FIELD_KEYS.includes(field as SkipFieldKey)
+                    ? t(`skipField_${field}` as Parameters<typeof t>[0])
+                    : field}
+                </li>
               ))}
             </ul>
             <p className="text-muted-foreground mt-2 text-xs">
