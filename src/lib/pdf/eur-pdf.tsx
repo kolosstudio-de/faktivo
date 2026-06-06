@@ -7,6 +7,7 @@ import {
 } from "@react-pdf/renderer"
 
 import { formatMoney } from "@/lib/money"
+import { computeEur } from "@/lib/eur/compute"
 import type {
   Category,
   ExpenseEntry,
@@ -95,71 +96,20 @@ export interface EurPdfInput {
   expenses: (ExpenseEntry & { category?: Category | null })[]
 }
 
-/** Map SKR03 code → EÜR Zeile (simplified). */
-function mapExpenseToZeile(skr?: string | null): number {
-  if (!skr) return 58
-  if (skr.startsWith("34")) return 26 // Wareneinkauf → Z26
-  if (skr.startsWith("31")) return 27 // Fremdleistungen → Z27
-  if (skr.startsWith("41")) return 28 // Personalkosten → Z28
-  if (skr.startsWith("42")) return 30 // Raumkosten → Z30
-  if (skr.startsWith("43")) return 32 // Versicherungen → Z32
-  if (skr.startsWith("45")) return 34 // KFZ → Z34
-  if (skr.startsWith("466")) return 36 // Reisekosten → Z36
-  if (skr.startsWith("465")) return 37 // Bewirtung → Z37
-  if (skr.startsWith("492")) return 39 // Telefon → Z39
-  if (skr.startsWith("493")) return 40 // Büromaterial → Z40
-  if (skr.startsWith("461")) return 41 // Werbung → Z41
-  if (skr.startsWith("495")) return 44 // Beratung → Z44
-  if (skr.startsWith("494")) return 45 // Fortbildung → Z45
-  if (skr.startsWith("483")) return 48 // Abschreibungen → Z48
-  if (skr.startsWith("497")) return 50 // Bankgebühren → Z50
-  return 58 // Sonstige Betriebsausgaben
-}
-
 export function EurPdf(input: EurPdfInput) {
   const { settings, year, invoices, extraIncome, expenses } = input
 
-  const einnahmenUmsatz = invoices.reduce((s, i) => s + i.total_cents, 0)
-  const einnahmenExtra = extraIncome.reduce((s, e) => s + e.amount_cents, 0)
-  const einnahmenGesamt = einnahmenUmsatz + einnahmenExtra
-
-  // Bucket expenses by Zeile
-  const byZeile = new Map<number, { label: string; amount: number }>()
-  const ZEILE_LABELS: Record<number, string> = {
-    26: "Wareneinkauf",
-    27: "Fremdleistungen / Subunternehmer",
-    28: "Personalkosten (Löhne / Gehälter)",
-    30: "Raumkosten",
-    32: "Versicherungen",
-    34: "KFZ-Kosten (betrieblich)",
-    36: "Reisekosten",
-    37: "Bewirtungskosten",
-    39: "Telefon, Internet, Porto",
-    40: "Büromaterial",
-    41: "Werbung",
-    44: "Rechts- und Steuerberatung",
-    45: "Fortbildung",
-    48: "Abschreibungen (AfA)",
-    50: "Bankgebühren",
-    58: "Sonstige Betriebsausgaben",
-  }
-
-  for (const e of expenses) {
-    if (!e.is_deductible) continue
-    const z = mapExpenseToZeile(e.category?.skr_code)
-    const entry = byZeile.get(z) ?? {
-      label: ZEILE_LABELS[z] ?? "Sonstiges",
-      amount: 0,
-    }
-    const privateShare = Number(e.private_share_pct ?? 0) / 100
-    entry.amount += Math.round(e.amount_cents * (1 - privateShare))
-    byZeile.set(z, entry)
-  }
-
-  const ausgabenGesamt = [...byZeile.values()].reduce((s, v) => s + v.amount, 0)
-  const gewinn = einnahmenGesamt - ausgabenGesamt
-
-  const sortedZeilen = [...byZeile.entries()].sort(([a], [b]) => a - b)
+  // EÜR-Berechnung kommt aus dem pure Module `@/lib/eur/compute` —
+  // testbar via scripts/test-eur.mjs, ohne PDF-Stream mocken zu müssen.
+  const result = computeEur({ year, invoices, extraIncome, expenses })
+  const einnahmenUmsatz = result.einnahmenUmsatzCents
+  const einnahmenExtra = result.einnahmenExtraCents
+  const einnahmenGesamt = result.einnahmenGesamtCents
+  const ausgabenGesamt = result.ausgabenGesamtCents
+  const gewinn = result.gewinnCents
+  const sortedZeilen = result.ausgabenByZeile.map(
+    (b) => [b.zeile, { label: b.label, amount: b.amountCents }] as const,
+  )
 
   const issuerName =
     settings.company_name?.trim() ||
