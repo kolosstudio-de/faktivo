@@ -54,19 +54,31 @@ Am Ende kriegst du die 3 Env-Vars in der Konsole — die brauchst du gleich für
 
 ---
 
-## Schritt 3 — Storage-Buckets manuell anlegen (~2 Min)
+## Schritt 3 — Storage-Buckets anlegen (~30 Sek, scripted)
 
-> Buckets gehen leider nicht über Migrations. Eine Minute Klicken im Dashboard.
+> Skript erstellt alle 5 Buckets idempotent via Supabase API.
 
-Öffne `https://supabase.com/dashboard/project/<PROJECT_REF>/storage/buckets` und erstelle 5 Buckets:
+Erst die Cloud-Env-Vars in `.env.local` setzen (aus Dashboard → Settings → API),
+dann:
 
-| Name | Public? | Wofür |
-|------|---------|-------|
-| `belege` | **No** | Eingangs-Belege (Quittungen, Rechnungen) |
-| `signatures` | **No** | E-Signaturen der Nutzer |
-| `stamps` | **No** | Firmen-Stempel |
-| `documents` | **No** | Hochgeladene Original-Rechnungen (Import) |
-| `public` | **Yes** | Logo-Bilder (auf Invoice-PDFs sichtbar) |
+```bash
+npm run deploy:buckets
+```
+
+Was angelegt wird:
+
+| Name | Public? | Max-Size | Wofür |
+|------|---------|----------|-------|
+| `belege` | private | 10 MB | Eingangs-Belege (Quittungen, Rechnungen) |
+| `signatures` | private | 2 MB | E-Signaturen der Nutzer |
+| `stamps` | private | 2 MB | Firmen-Stempel |
+| `documents` | private | 20 MB | Hochgeladene Original-Rechnungen (Import) |
+| `public` | **public** | 5 MB | Logo-Bilder (auf Invoice-PDFs sichtbar) |
+
+Jeder Bucket hat MIME-type-Whitelist (PDF/Bild — keine Executables, kein zip).
+
+Falls du es manuell machst (Dashboard → Storage → Buckets), die Whitelists nicht
+vergessen — sonst kannst du beim Upload spamen.
 
 ---
 

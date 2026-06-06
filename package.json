@@ -11,7 +11,9 @@
     "test:money": "tsx scripts/test-money.mjs",
     "test:jobcenter": "tsx scripts/test-jobcenter.mjs",
     "test:pdf": "node scripts/test-pdf-render.mjs",
-    "test": "npm run test:money && npm run test:jobcenter && npm run test:pdf"
+    "test": "npm run test:money && npm run test:jobcenter && npm run test:pdf",
+    "deploy:supabase": "./scripts/deploy/setup-cloud-supabase.sh",
+    "deploy:buckets": "node scripts/deploy/setup-storage-buckets.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
