@@ -5,6 +5,13 @@
 > Rechnungen, Mahnungen, Banking-Import, EÜR, Anlage EKS, Steuerberater-ZIP.
 > DSGVO- & GoBD-konform, auf Deutsch, Englisch, Русский, Українською.
 
+## 🚀 Deployment
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fkolosstudio-de%2Ffaktivo&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,ANTHROPIC_API_KEY,CRON_SECRET&envDescription=Required%20environment%20variables%20%E2%80%94%20Supabase%20%2B%20Anthropic%20Claude%20%2B%20Cron%20Secret&envLink=https%3A%2F%2Fgithub.com%2Fkolosstudio-de%2Ffaktivo%2Fblob%2Fmain%2F.env.local.example&project-name=faktivo&repository-name=faktivo)
+
+**1-Klick-Deploy auf Vercel** (Frankfurt-Region pinned, GDPR-safe). Setup-Guide für
+Cloud-Supabase + Vercel + Storage-Buckets: [`scripts/deploy/QUICKSTART-CLOUD.md`](./scripts/deploy/QUICKSTART-CLOUD.md).
+
 ## Was Faktivo macht
 
 | Bereich        | Funktion                                                                              |
@@ -30,27 +37,36 @@
 
 ## Lokales Setup
 
+### Variante A — ohne Docker (Cloud-Supabase) ✅ empfohlen
+
 ```bash
 # 1. Dependencies
 npm ci
 
-# 2. Supabase lokal (braucht Docker)
-brew install supabase/tap/supabase   # einmalig
-supabase start                       # startet Postgres + Auth + Storage auf :54321
-supabase db reset                    # wendet alle Migrationen an
+# 2. Supabase Cloud-Projekt anlegen (https://supabase.com/dashboard/new)
+#    Region: eu-central-1 (Frankfurt), Plan: Free
+#    → 5-Minuten-Walkthrough: scripts/deploy/QUICKSTART-CLOUD.md
+./scripts/deploy/setup-cloud-supabase.sh  # linkt + pushed alle Migrationen
 
-# 3. ENV
-cp .env.example .env.local           # falls vorhanden — sonst manuell setzen:
-# NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=<aus `supabase status`>
-# SUPABASE_SERVICE_ROLE_KEY=<aus `supabase status`>
-# ANTHROPIC_API_KEY=sk-ant-…
-# RESEND_API_KEY=re_…                 # optional — ohne Key gehen Mails in Dry-Run
-# STRIPE_SECRET_KEY=sk_test_…         # optional
-# TRUELAYER_CLIENT_ID=…               # optional
-# TRUELAYER_CLIENT_SECRET=…           # optional
+# 3. ENV — Cloud-Werte aus Dashboard → Settings → API
+cp .env.local.example .env.local
+# Editiere mindestens:
+#   NEXT_PUBLIC_SUPABASE_URL=https://<PROJECT_REF>.supabase.co
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+#   SUPABASE_SERVICE_ROLE_KEY=eyJ...
+#   ANTHROPIC_API_KEY=sk-ant-…
 
 # 4. Dev-Server
+npm run dev
+```
+
+### Variante B — vollständig offline (lokales Supabase, braucht Docker)
+
+```bash
+brew install supabase/tap/supabase docker
+supabase start                       # startet Postgres + Auth + Storage auf :54321
+supabase db reset                    # wendet alle Migrationen an
+# .env.local zeigt auf http://127.0.0.1:54321 (siehe .env.local.example)
 npm run dev
 ```
 
