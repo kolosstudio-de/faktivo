@@ -62,7 +62,7 @@ jobs:
       - run: npm run typecheck
 
   unit:
-    name: Unit tests (money + jobcenter + datev + pdf)
+    name: Unit tests (money + jobcenter + datev + xrechnung + pdf)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,4 +76,5 @@ jobs:
       - run: npm run test:money
       - run: npm run test:jobcenter
       - run: npm run test:datev
+      - run: npm run test:xrechnung
       - run: npm run test:pdf
